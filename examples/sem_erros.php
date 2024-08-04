@@ -8,6 +8,15 @@ Uma string heredoc
 com múltiplas linhas.
 EOT; // Heredoc (PHP 5 e 8.4)
 
+// Comentario
+
+# This is a comment 
+
+/* 
+    $this->titulo = $titulo;
+    $this->autor = $autor;
+*/
+
 // Tipos de dados (PHP 5 vs. PHP 8.4)
 $inteiro = 42; // Inteiro (PHP 5 e 8.4)
 $float = 3.14; // Float (PHP 5 e 8.4)
@@ -57,7 +66,7 @@ $texto = match ($cor) {
 };
 
 // Named arguments (PHP 8.0+)
-function saudacao(string $nome, string $saudação = 'Olá'): string {
+function saudacao(string $nome, string $saudacao = 'Olá'): string {
     return "$saudação, $nome!";
 }
 
