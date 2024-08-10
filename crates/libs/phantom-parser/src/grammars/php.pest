@@ -1,0 +1,84 @@
+WHITESPACE = _{ " " | "\t" | NEWLINE }
+COMMENT    = _{ ("//" | "#") ~ (!NEWLINE ~ ANY)* ~ NEWLINE }
+
+identifier = { ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
+variable   = { "$" ~ identifier }
+
+number  = { ASCII_DIGIT ~ (".")? ~ ASCII_DIGIT* }
+
+single_quotes = { PUSH("'") ~ (!(PEEK) ~ ANY)* ~ POP }
+double_quotes = { PUSH("\"") ~ (!(PEEK) ~ ANY)* ~ POP }
+string  = { single_quotes | double_quotes }
+
+boolean = { "true" | "false" }
+
+items = { (number | string | boolean) ~ ("," ~ (number | string | boolean))* }
+array = { "[" ~ items? ~ "]"}
+
+args = { expression ~ ("," ~ expression)* }
+instance = { "new" ~ identifier ~ ( "(" ~ args? ~ ")") }
+
+// heredoc = { "<<<" ~ PUSH("EOT") ~ content ~ POP }
+// content = { (!(PEEK) ~ ANY)* }
+
+semicolon = { ";" }
+equals    = { "=" }
+lparen    = { "(" }
+rparen    = { ")" }
+lbrace    = { "{" }
+rbrace    = { "}" }
+
+safety_variable = { variable ~ "?" }
+
+operator = { "*" | "+" | "-" | "/" }
+
+type = { "int" | "float" | "string" }
+
+// optional_type = { "?" ~ type }
+union_type = { type ~ ("|" ~ type)* }
+
+return_type = { ":" ~ union_type }
+
+object = { variable ~ "->" ~ identifier }
+static = { identifier ~ "::" ~ identifier }
+
+call = { object | static }
+
+parameter  = { union_type? ~ assignment}
+parameters = { parameter ~ ("," ~ parameter)* }
+
+fn_arrow = { "fn" ~ lparen ~ parameters? ~ rparen ~ "=>" ~ complex }
+
+expression = { (variable | safety_variable | call | fn_arrow) | number | string | boolean | array | instance  }
+complex = { expression ~ (operator ~ expression)* }
+
+visibility = { "public" | "private" | "protected" }
+property = { visibility ~ "readonly"? ~ type? ~ variable }
+
+property_assignment = { property ~ (equals ~ complex)? }
+variable_assignment = { variable ~ (equals ~ complex)? }
+object_assignment = { object ~ equals ~ complex }
+
+assignment = {object_assignment | variable_assignment | property_assignment }
+
+declaration = { visibility ~ function }
+
+return_statement = { "return" ~ complex }
+
+// arrow_statement = { (call | identifier | string | number) ~ "=>" ~ complex }
+
+statement  = { (assignment | return_statement | complex ) ~ semicolon ~ WHITESPACE* ~ COMMENT? }
+
+function   = { "function" ~ ("__")? ~ identifier ~ lparen ~ parameters? ~ rparen ~ return_type? ~ lbrace ~ statements ~ rbrace }
+
+class = { "class" ~ identifier ~ lbrace ~ statements ~ rbrace }
+
+enum_item = { identifier ~ ("," ~ identifier)* }
+enum = { "enum" ~ identifier ~ lbrace ~ enum_item ~ rbrace}
+
+// match = { "match" ~ lparen ~ variable ~ rparen ~ lbrace ~ statement ~ rbrace }
+
+statements = { (statement | function | class | enum | declaration | COMMENT | WHITESPACE)* }
+php_block  = { "<?php" ~ statements ~ ("?>")? }
+
+program = { SOI ~ php_block ~ EOI }

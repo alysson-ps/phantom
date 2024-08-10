@@ -1,14 +1,13 @@
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
-}
+use anyhow::Result;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+use pest::{iterators::Pairs, Parser};
+use pest_derive::Parser;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
+#[derive(Parser)]
+#[grammar = "grammars/php.pest"]
+struct MyParser;
+
+pub fn parser(source: &str) -> Result<Pairs<'_, Rule>, pest::error::Error<Rule>> {
+    pest::set_error_detail(true);
+    MyParser::parse(Rule::program, source)
 }
