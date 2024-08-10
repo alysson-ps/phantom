@@ -21,8 +21,8 @@ array = { "[" ~ items? ~ "]"}
 args = { expression ~ ("," ~ expression)* }
 instance = { "new" ~ identifier ~ "(" ~ args? ~ ")" }
 
-// heredoc = { "<<<" ~ PUSH("EOT") ~ content ~ POP }
-// content = { (!(PEEK) ~ ANY)* }
+content = { (!(PEEK) ~ ANY)* }
+heredoc = { "<<<" ~ PUSH("EOT") ~ content ~ POP }
 
 semicolon = { ";" }
 equals    = { "=" }
@@ -44,6 +44,7 @@ types = { union_type }
 
 return_type = { ":" ~ types }
 
+// TODO: verify
 object = _{ variable ~ "->" ~ identifier }
 static = _{ identifier ~ "::" ~ identifier }
 
@@ -52,9 +53,13 @@ call = { object | static }
 parameter  = { types? ~ assignment}
 parameters = { parameter ~ ("," ~ parameter)* }
 
-fn_arrow = { "fn" ~ "(" ~ parameters? ~ ")" ~ "=>" ~ expression }
+arrow_statement = { (call | identifier | string | number) ~ "=>" ~ expression }
+arrow = { arrow_statement ~ ("," ~ arrow_statement)* }
 
-base_expression = _{ (variable | safety_variable | call | fn_arrow) | primary | array | instance  }
+fn_arrow = { "fn" ~ "(" ~ parameters? ~ ")" ~ "=>" ~ expression }
+match = { "match" ~ "(" ~ variable ~ ")" ~ "{" ~ arrow ~ "}" }
+
+base_expression = _{ (variable | safety_variable | call | fn_arrow | match) | primary | array | instance | heredoc }
 expression = { base_expression ~ (operator ~ base_expression)* }
 
 visibility = { "public" | "private" | "protected" }
@@ -77,21 +82,16 @@ namespace = { "namespace" ~ path}
 
 import = { "use" ~ path ~ alias? }
 
-// arrow_statement = { (call | identifier | string | number) ~ "=>" ~ complex }
-
-statement  = { (namespace | import | assignment | return | expression ) ~ semicolon ~ WHITESPACE* ~ COMMENT? }
+statement  = { (namespace | import | assignment | return | expression) ~ semicolon ~ WHITESPACE* ~ COMMENT? }
 
 function   = { "function" ~ ("__")? ~ identifier ~ "(" ~ parameters? ~ ")" ~ return_type? ~ "{" ~ statements ~ "}" }
 
-
 extends = { "extends" ~ identifier }
 implements = { "implements" ~ identifier }
-class = { "class" ~ identifier ~ extends? ~ implements ~ "{" ~ statements ~ "}" }
+class = { "class" ~ identifier ~ extends? ~ implements? ~ "{" ~ statements ~ "}" }
 
 enum_item = _{ identifier ~ ("," ~ identifier)* }
 enum = { "enum" ~ identifier ~ "{" ~ enum_item ~ "}"}
-
-// match = { "match" ~ lparen ~ variable ~ rparen ~ lbrace ~ statement ~ rbrace }
 
 statements = { (statement | function | class | enum | declaration | COMMENT | WHITESPACE)* }
 php_open = { "<?php" }
@@ -99,3 +99,5 @@ php_close = { "?>" }
 php_block  = _{ php_open ~ statements ~ php_close? }
 
 program = { SOI ~ php_block ~ EOI }
+
+// Var allow statements
