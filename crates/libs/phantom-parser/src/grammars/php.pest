@@ -1,32 +1,35 @@
 WHITESPACE = _{ " " | "\t" | NEWLINE }
 COMMENT    = _{ ("//" | "#") ~ (!NEWLINE ~ ANY)* ~ NEWLINE }
 
-identifier = { ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
+identifier = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
+
 variable   = { "$" ~ identifier }
 
 number  = { ASCII_DIGIT ~ (".")? ~ ASCII_DIGIT* }
 
-single_quotes = { PUSH("'") ~ (!(PEEK) ~ ANY)* ~ POP }
-double_quotes = { PUSH("\"") ~ (!(PEEK) ~ ANY)* ~ POP }
+single_quotes = _{ PUSH("'") ~ (!(PEEK) ~ ANY)* ~ POP }
+double_quotes = _{ PUSH("\"") ~ (!(PEEK) ~ ANY)* ~ POP }
 string  = { single_quotes | double_quotes }
 
 boolean = { "true" | "false" }
 
-items = { (number | string | boolean) ~ ("," ~ (number | string | boolean))* }
+primary = _{ number | string | boolean }
+
+items = _{ primary ~ ("," ~ primary)* }
 array = { "[" ~ items? ~ "]"}
 
 args = { expression ~ ("," ~ expression)* }
-instance = { "new" ~ identifier ~ ( "(" ~ args? ~ ")") }
+instance = { "new" ~ identifier ~ "(" ~ args? ~ ")" }
 
 // heredoc = { "<<<" ~ PUSH("EOT") ~ content ~ POP }
 // content = { (!(PEEK) ~ ANY)* }
 
 semicolon = { ";" }
 equals    = { "=" }
-lparen    = { "(" }
-rparen    = { ")" }
-lbrace    = { "{" }
-rbrace    = { "}" }
+// lparen    = { "(" }
+// rparen    = { ")" }
+// lbrace    = { "{" }
+// rbrace    = { "}" }
 
 safety_variable = { variable ~ "?" }
 
@@ -35,50 +38,64 @@ operator = { "*" | "+" | "-" | "/" }
 type = { "int" | "float" | "string" }
 
 // optional_type = { "?" ~ type }
-union_type = { type ~ ("|" ~ type)* }
+union_type = _{ type ~ ("|" ~ type)* }
 
-return_type = { ":" ~ union_type }
+types = { union_type }
 
-object = { variable ~ "->" ~ identifier }
-static = { identifier ~ "::" ~ identifier }
+return_type = { ":" ~ types }
+
+object = _{ variable ~ "->" ~ identifier }
+static = _{ identifier ~ "::" ~ identifier }
 
 call = { object | static }
 
-parameter  = { union_type? ~ assignment}
+parameter  = { types? ~ assignment}
 parameters = { parameter ~ ("," ~ parameter)* }
 
-fn_arrow = { "fn" ~ lparen ~ parameters? ~ rparen ~ "=>" ~ complex }
+fn_arrow = { "fn" ~ "(" ~ parameters? ~ ")" ~ "=>" ~ expression }
 
-expression = { (variable | safety_variable | call | fn_arrow) | number | string | boolean | array | instance  }
-complex = { expression ~ (operator ~ expression)* }
+base_expression = _{ (variable | safety_variable | call | fn_arrow) | primary | array | instance  }
+expression = { base_expression ~ (operator ~ base_expression)* }
 
 visibility = { "public" | "private" | "protected" }
-property = { visibility ~ "readonly"? ~ type? ~ variable }
+property = { visibility ~ "readonly"? ~ types? ~ variable }
 
-property_assignment = { property ~ (equals ~ complex)? }
-variable_assignment = { variable ~ (equals ~ complex)? }
-object_assignment = { object ~ equals ~ complex }
+property_assignment = _{ property ~ (equals ~ expression)? }
+variable_assignment = _{ variable ~ (equals ~ expression)? }
+object_assignment = _{ object ~ equals ~ expression }
 
-assignment = {object_assignment | variable_assignment | property_assignment }
+assignment = _{object_assignment | variable_assignment | property_assignment }
 
 declaration = { visibility ~ function }
 
-return_statement = { "return" ~ complex }
+return = _{ "return" ~ expression }
+
+alias = { "as" ~ identifier }
+path = { identifier ~ ("\\" ~ (identifier))* }
+
+namespace = { "namespace" ~ path}
+
+import = { "use" ~ path ~ alias? }
 
 // arrow_statement = { (call | identifier | string | number) ~ "=>" ~ complex }
 
-statement  = { (assignment | return_statement | complex ) ~ semicolon ~ WHITESPACE* ~ COMMENT? }
+statement  = { (namespace | import | assignment | return | expression ) ~ semicolon ~ WHITESPACE* ~ COMMENT? }
 
-function   = { "function" ~ ("__")? ~ identifier ~ lparen ~ parameters? ~ rparen ~ return_type? ~ lbrace ~ statements ~ rbrace }
+function   = { "function" ~ ("__")? ~ identifier ~ "(" ~ parameters? ~ ")" ~ return_type? ~ "{" ~ statements ~ "}" }
 
-class = { "class" ~ identifier ~ lbrace ~ statements ~ rbrace }
 
-enum_item = { identifier ~ ("," ~ identifier)* }
-enum = { "enum" ~ identifier ~ lbrace ~ enum_item ~ rbrace}
+extends = { "extends" ~ identifier }
+implements = { "implements" ~ identifier }
+class = { "class" ~ identifier ~ extends? ~ implements ~ "{" ~ statements ~ "}" }
+
+enum_item = _{ identifier ~ ("," ~ identifier)* }
+enum = { "enum" ~ identifier ~ "{" ~ enum_item ~ "}"}
 
 // match = { "match" ~ lparen ~ variable ~ rparen ~ lbrace ~ statement ~ rbrace }
 
 statements = { (statement | function | class | enum | declaration | COMMENT | WHITESPACE)* }
-php_block  = { "<?php" ~ statements ~ ("?>")? }
+php_open = { "<?php" }
+php_close = { "?>" }
+php_block  = _{ php_open ~ statements ~ php_close? }
 
 program = { SOI ~ php_block ~ EOI }
