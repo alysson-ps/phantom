@@ -3,11 +3,12 @@ use chumsky::{
     extra::Err,
     input::{Input, Stream, ValueInput},
     prelude::{end, just},
-    select,
+    recursive, select,
     span::SimpleSpan,
-    Parser,
+    IterParser, Parser,
 };
 use logos::Logos;
+use serde_json::json;
 
 pub type Span = SimpleSpan;
 pub type Spanned<T> = (T, Span);
@@ -76,7 +77,7 @@ pub enum Token<'a> {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum AstNode<'a> {
+pub enum Statement<'a> {
     Namespace {
         path: Vec<&'a str>,
     },
@@ -87,15 +88,48 @@ pub enum AstNode<'a> {
     },
 }
 
-fn parser<'a, I>() -> impl Parser<'a, I, AstNode<'a>, Err<Rich<'a, Token<'a>>>>
+#[derive(Debug, PartialEq)]
+struct Program<'a> {
+    kind: &'a str,
+    span: Span,
+    statements: Vec<Statement<'a>>,
+}
+
+fn parser<'a, I>() -> impl Parser<'a, I, Program<'a>, Err<Rich<'a, Token<'a>>>>
 where
     I: ValueInput<'a, Token = Token<'a>, Span = Span>,
 {
-    let namespace = just(Token::Namespace)
-        .ignore_then(select! { Token::Identifier(name) => name  })
-        .map(|name: &'a str| AstNode::Namespace { path: vec![name] });
+    just(Token::OpenTag)
+        .ignore_then(statement().repeated().collect())
+        .then_ignore(just(Token::CloseTag).or_not())
+        .map_with(|statements, e| Program {
+            kind: "Program",
+            span: e.span(),
+            statements,
+        })
+}
 
-    namespace.then_ignore(end())
+fn statement<'a, I>() -> impl Parser<'a, I, Statement<'a>, Err<Rich<'a, Token<'a>>>>
+where
+    I: ValueInput<'a, Token = Token<'a>, Span = Span>,
+{
+    let new_line = select! { Token::Newline(n) => n }
+        .map_with(|count, e| (count, e.span()))
+        .validate(|(count, span), _, emmiter| {
+            if count > 2 {
+                emmiter.emit(Rich::custom(span, "Too many new lines"));
+            }
+        });
+
+    let base_path = select! { Token::Identifier(name) => name };
+    let path = base_path.separated_by(just(Token::Backslash)).collect().labelled("Path");
+
+    let namespace = just(Token::Namespace)
+        .ignore_then(path)
+        .then_ignore(just(Token::Semicolon))
+        .map(|path| Statement::Namespace { path });
+
+    namespace.padded_by(new_line)
 }
 
 pub fn parse(source: &str) {
@@ -106,10 +140,14 @@ pub fn parse(source: &str) {
         Err(()) => (Token::Error, SimpleSpan::from(span)),
     });
 
+    let tokens: Vec<_> = token_iter.clone().collect();
+
+    dbg!(&tokens);
+
     let token_stream =
         Stream::from_iter(token_iter).map((0..source.len()).into(), |(t, s): (_, _)| (t, s.into()));
 
-    let result = parser().parse(token_stream);
+    let result = parser().parse(token_stream).into_result();
 
     dbg!(&result);
 }
