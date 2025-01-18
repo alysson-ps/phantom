@@ -86,6 +86,8 @@ class Livro {
     public function __construct(string $titulo, string $autor) {
         $this->titulo = $titulo;
         $this->autor = $autor;
+
+        $this->titulo;
     }
 
     public function getDescricao(): string {

@@ -39,11 +39,6 @@ struct ParserArgs {
     debug: u8,
 }
 
-#[derive(Debug, Clone)]
-struct Config {
-    framework: Option<Framework>,
-}
-
 #[derive(Debug, Clone, EnumIter, AsRefStr)]
 enum Framework {
     Laravel,
@@ -52,7 +47,7 @@ enum Framework {
     Php,
 }
 
-fn initialize(args: &InitArgs) -> Config {
+fn initialize(args: &InitArgs) {
     dbg!(args);
 
     let frameworks: Vec<String> =
@@ -65,21 +60,21 @@ fn initialize(args: &InitArgs) -> Config {
         .interact()
         .unwrap();
 
-    let framework = Framework::iter().nth(selected).unwrap();
+    let _framework = Framework::iter().nth(selected).unwrap();
 
-    Config {
-        framework: Some(framework),
-    }
+    // Config {
+    //     framework: Some(framework),
+    // }
 }
 
 fn parser(args: &ParserArgs) {
-    dbg!(args);
+    // dbg!(args);
 
     let content = std::fs::read_to_string(&args.path).expect("Failed to read file");
 
-    let result = phantom_parser::parser(&content);
+    let result = phantom_parser::parse(&content);
 
-    dbg!(&result);
+    // dbg!(&result);
 }
 
 fn main() {

@@ -1,8 +1,20 @@
 <?php
-    class Test {
-        function doSomething($param1, $param2) {
-            $var1 = 123;
-            $var2 = $var1;
+    // Comentário de uma linha
+    /* Comentário de várias linhas */
+
+    namespace App\Baseline;
+
+    class Pessoa {
+        public $nome;
+        private $idade;
+
+        public function __construct($nome, $idade) {
+            $this->nome = $nome;
+            $this->idade = $idade;
+        }
+
+        public function saudacao() {
+            echo "Olá, " . $this->nome;
         }
     }
 ?>
