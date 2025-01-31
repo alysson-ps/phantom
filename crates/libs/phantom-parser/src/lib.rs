@@ -2,7 +2,9 @@ use chumsky::{
     error::Rich,
     extra::Err,
     input::{Input, Stream, ValueInput},
-    prelude::{choice, just, nested_delimiters, recursive, via_parser},
+    prelude::{
+        any, choice, just, nested_delimiters, one_of, recursive, skip_then_retry_until, via_parser,
+    },
     select,
     span::SimpleSpan,
     IterParser, Parser,
@@ -366,29 +368,18 @@ where
             })
             .labelled("Args");
 
-        let _return = just(Token::Return)
-            .ignore_then(expression().padded_by(new_line.repeated()).or_not())
-            .then_ignore(just(Token::Semicolon))
-            .map(|ret_expr| Expr::Return {
-                expr: Box::new(ret_expr),
-            });
-
-        let function_body = choice((
-            _return.map(Expr::from),
-            expression().then_ignore(just(Token::Semicolon)),
-        ))
-        .padded_by(new_line.repeated())
-        .repeated()
-        .collect::<Vec<_>>()
-        .delimited_by(just(Token::LBrace), just(Token::RBrace));
-
         let function = select! { Token::Visibility(visibility) => visibility }
             .labelled("Visibility")
             .then(just(Token::Static).or_not())
             .then_ignore(just(Token::Function))
             .then(select! { Token::Identifier(name) => name })
             .then(args)
-            .then(function_body)
+            .then(
+                expression()
+                    .repeated()
+                    .collect::<Vec<_>>()
+                    .delimited_by(just(Token::LBrace), just(Token::RBrace)),
+            )
             .map_with(
                 |((((visibility, is_static), name), args), body), _| Statement::Method {
                     name,
@@ -398,28 +389,6 @@ where
                     body,
                 },
             );
-
-        // let expr = recursive(|expr| {
-        //     // Valores básicos
-        //     let value = select! {
-        //         Token::Null => Expr::Value(Value::Null),
-        //         Token::Bool(value) => Expr::Value(Value::Bool(value)),
-        //         Token::Number(value) => Expr::Value(Value::Num(value)),
-        //         Token::String(value) => Expr::Value(Value::Str(value)),
-        //     };
-
-        //     // Atribuição
-        //     let assign = select! { Token::Variable(name) => name }
-        //         .then_ignore(just(Token::Equals))
-        //         .then(expr.clone()) // Usando `expr` recursivamente
-        //         .then_ignore(just(Token::Semicolon))
-        //         .map(|(var, val)| Expr::Assign(var, Box::new(val))); // Retorno formatado
-
-        //     // Combinação de parsers
-        //     value.or(assign).map_with(|ex, e| (ex, e.span()))
-        // });
-
-        // // Parser para `return`
 
         choice((class, function, namespace, property)).padded_by(new_line.repeated())
     })
@@ -447,12 +416,14 @@ where
 
             let variable = select! {Token::Variable(name) => name}.map(|name| Expr::Variable(name));
 
-            let _var = variable.then_ignore(just(Token::Assign)).then(inline_expr.clone()).map(
-                |(var, val)| Expr::Assignment {
+            let _var = variable
+                .then_ignore(just(Token::Assign))
+                .then(inline_expr.clone())
+                .then_ignore(just(Token::Semicolon))
+                .map(|(var, val)| Expr::Assignment {
                     target: Box::new(var),
                     value: Box::new(val),
-                },
-            );
+                });
 
             let property = select! {Token::Variable(name) => name}
                 .then_ignore(just(Token::Arrow))
@@ -472,9 +443,9 @@ where
             // 'Atoms' are expressions that contain no ambiguity
             let atom = val
                 // .or(ident.map(Expr::Local))
+                .or(_var)
                 .or(property)
                 .or(variable)
-                .or(_var)
                 .or(list)
                 // In Nano Rust, `print` is just a keyword, just like Python 2, for simplicity
                 // .or(just(Token::Print)
@@ -513,7 +484,11 @@ where
                     .delimited_by(just(Token::LParen), just(Token::RParen))
                     .map_with(|args, e| args)
                     .repeated(),
-                |f, args, e| Expr::Call(Box::new(f), args),
+                |f, args, e| {
+                    dbg!(&f);
+                    dbg!(&args);
+                    Expr::Call(Box::new(f), args)
+                },
             );
 
             // Product ops (multiply and divide) have equal precedence
@@ -568,9 +543,67 @@ where
             logic.labelled("expression").as_context()
         });
 
-        // return parser
+        let new_line = select! { Token::Newline(n) => n }
+            .map_with(|count, e| (count, e.span()))
+            .validate(|(count, span), _, emitter| {
+                if count > 2 {
+                    emitter.emit(Rich::custom(span, "Too many new lines"));
+                }
+            });
 
-        inline_expr
+        let _return = just(Token::Return)
+            .ignore_then(inline_expr.clone().or_not())
+            .then_ignore(just(Token::Semicolon))
+            .map(|ret_expr| Expr::Return {
+                expr: Box::new(ret_expr),
+            });
+
+        // let block = choice((
+        //     _return,
+        //     inline_expr.clone().then_ignore(just(Token::Semicolon)),
+        // ))
+        // .padded_by(new_line.repeated())
+        // .delimited_by(just(Token::LBrace), just(Token::RBrace));
+
+        let block_recovery = nested_delimiters(
+            Token::LBracket,
+            Token::RBracket,
+            [
+                (Token::LParen, Token::RParen),
+                (Token::LBrace, Token::RBrace),
+            ],
+            |span| Expr::Error,
+        );
+
+        let block = expr
+            .clone()
+            .delimited_by(just(Token::LBrace), just(Token::RBrace))
+            .recover_with(via_parser(nested_delimiters(
+                Token::LBracket,
+                Token::RBracket,
+                [
+                    (Token::LParen, Token::RParen),
+                    (Token::LBrace, Token::RBrace),
+                ],
+                |span| Expr::Error,
+            )));
+
+        let block_expr = block.or(_return);
+
+        let block_chain = block_expr.clone();
+
+        block_chain.or(inline_expr).padded_by(new_line.repeated()).recover_with(
+            skip_then_retry_until(
+                block_recovery.ignored().or(any().ignored()),
+                one_of([
+                    Token::RBrace,
+                    Token::RParen,
+                    Token::RBracket,
+                    Token::Semicolon,
+                ])
+                .ignored(),
+            ),
+        )
     })
 }
 
@@ -589,7 +622,9 @@ pub fn parse(source: &str) {
     let token_stream =
         Stream::from_iter(token_iter).map((0..source.len()).into(), |(t, s): (_, _)| (t, s.into()));
 
-    let result = parser().parse(token_stream).into_result();
+    let result = parser().parse(token_stream).into_output_errors();
+    // let result =
+    //     expression().repeated().collect::<Vec<_>>().parse(token_stream).into_output_errors();
 
     dbg!(&result);
 }
