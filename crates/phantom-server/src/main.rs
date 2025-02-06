@@ -4,13 +4,13 @@ use serde_json::Value;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 
+use tower_lsp::lsp_types::SemanticTokenType;
 #[allow(unused)]
 use tower_lsp::{Client, LanguageServer, LspService, Server};
-use tower_lsp::lsp_types::SemanticTokenType;
 
 use tower_lsp::lsp_types::{
-    Diagnostic, InitializeParams, InitializeResult, ServerCapabilities,
-    TextDocumentSyncCapability, TextDocumentSyncKind,
+    Diagnostic, InitializeParams, InitializeResult, ServerCapabilities, TextDocumentSyncCapability,
+    TextDocumentSyncKind,
 };
 
 #[allow(unused)]
@@ -119,6 +119,9 @@ impl Backend {
 
         let _content = params.text;
 
+        phantom_logger::info!(_content.as_str());
+        phantom_logger::debug!(rope.to_string().as_str());
+
         // let mut diagnostics = Vec::new();
 
         // self.client
@@ -129,10 +132,11 @@ impl Backend {
 
 #[tokio::main]
 async fn main() {
-    let (stdin, stdout) = (tokio::io::stdin(), tokio::io::stdout());
+    phantom_logger::init().expect("Failed to initialize logger");
 
-    #[cfg(feature = "runtime-agnostic")]
-    let (stdin, stdout) = (stdin.compat(), stdout.compat_write());
+    phantom_logger::info!("Starting server...");
+
+    let (stdin, stdout) = (tokio::io::stdin(), tokio::io::stdout());
 
     let (service, socket) = LspService::build(|client| Backend {
         client,

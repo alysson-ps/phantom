@@ -74,7 +74,7 @@ fn parser(args: &ParserArgs) {
 
     let result = phantom_parser::parse(&content);
 
-    // dbg!(&result);
+    dbg!(&result);
 }
 
 fn main() {

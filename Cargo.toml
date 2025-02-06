@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/phantom-cli", "crates/libs/phantom-parser", "crates/phantom-server"]
+members = ["crates/phantom-cli", "crates/libs/phantom-parser", "crates/phantom-server", "crates/libs/phantom-logger"]
 
 default-members = ["crates/phantom-cli"]
 
