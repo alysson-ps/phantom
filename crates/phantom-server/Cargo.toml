@@ -21,4 +21,6 @@ dashmap = "5.1.0"
 log = "0.4.14"
 im-rc = "15.0.0"
 
+chumsky = { git = "https://github.com/zesterer/chumsky.git", branch = "main" }
+
 pest = "2.7.11"

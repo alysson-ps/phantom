@@ -826,6 +826,7 @@ dependencies = [
 name = "phantom-server"
 version = "0.1.0"
 dependencies = [
+ "chumsky",
  "dashmap",
  "env_logger",
  "im-rc",

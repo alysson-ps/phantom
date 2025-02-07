@@ -1,4 +1,6 @@
 use dashmap::DashMap;
+use phantom_logger::{debug, info};
+use phantom_parser::ParserResult;
 use ropey::Rope;
 use serde_json::Value;
 use tower_lsp::jsonrpc::Result;
@@ -117,15 +119,42 @@ impl Backend {
         let rope = ropey::Rope::from_str(&params.text);
         self.document_map.insert(params.uri.to_string(), rope.clone());
 
-        let _content = params.text;
+        let content = params.text;
 
-        phantom_logger::info!(_content.as_str());
-        phantom_logger::debug!(rope.to_string().as_str());
+        let ParserResult {
+            ast,
+            parse_errors,
+            tokens,
+        } = phantom_parser::parse(&content);
 
-        // let mut diagnostics = Vec::new();
+        debug!(format!("{:?}", ast).as_str());
+        debug!(format!("{:?}", tokens).as_str());
+        info!(format!("{:?}", parse_errors).as_str());
+
+        // let diags = parse_errors
+        //     .into_iter()
+        //     .filter_map(|item| {
+        //         let (message, span) = match item.reason() {
+        //             chumsky::error::RichReason::Custom(msg) => (msg.to_string(), item.span()),
+        //             _ => unreachable!(),
+        //         };
+
+        //         || -> Option<Diagnostic> {
+        //             let start_pos = offset_to_position(span.start, &rope)?;
+        //             let end_pos = offset_to_position(span.end, &rope)?;
+
+        //             Some(Diagnostic::new_simple(
+        //                 Range::new(start_pos, end_pos),
+        //                 message,
+        //             ))
+        //         }()
+        //     })
+        //     .collect::<Vec<_>>();
+
+        // // let mut diagnostics = Vec::new();
 
         // self.client
-        //     .publish_diagnostics(params.uri.clone(), diagnostics, Some(params.version))
+        //     .publish_diagnostics(params.uri.clone(), diags, Some(params.version))
         //     .await;
     }
 }
