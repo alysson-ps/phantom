@@ -14,8 +14,6 @@ use logos::Logos;
 pub type Span = SimpleSpan;
 pub type Spanned<T> = (T, Span);
 
-pub type ErrorRich<'a> = Rich<'a, Token<'a>, Span>;
-
 #[derive(Debug, Logos, PartialEq, Clone)]
 pub enum Token<'a> {
     #[regex(r"[ \t\f]+", logos::skip)]
