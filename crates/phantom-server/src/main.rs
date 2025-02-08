@@ -4,13 +4,13 @@ use serde_json::Value;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 
+use tower_lsp::lsp_types::SemanticTokenType;
 #[allow(unused)]
 use tower_lsp::{Client, LanguageServer, LspService, Server};
-use tower_lsp::lsp_types::SemanticTokenType;
 
 use tower_lsp::lsp_types::{
-    Diagnostic, InitializeParams, InitializeResult, ServerCapabilities,
-    TextDocumentSyncCapability, TextDocumentSyncKind,
+    Diagnostic, InitializeParams, InitializeResult, ServerCapabilities, TextDocumentSyncCapability,
+    TextDocumentSyncKind,
 };
 
 #[allow(unused)]
@@ -35,6 +35,13 @@ impl LanguageServer for Backend {
                 text_document_sync: Some(TextDocumentSyncCapability::Kind(
                     TextDocumentSyncKind::FULL,
                 )),
+                completion_provider: Some(CompletionOptions {
+                    resolve_provider: Some(false),
+                    trigger_characters: Some(vec![".".to_string()]),
+                    work_done_progress_options: Default::default(),
+                    all_commit_characters: None,
+                    completion_item: None,
+                }),
                 ..ServerCapabilities::default()
             },
             ..InitializeResult::default()
@@ -104,6 +111,8 @@ impl LanguageServer for Backend {
     }
 
     async fn completion(&self, _: CompletionParams) -> Result<Option<CompletionResponse>> {
+        self.client.log_message(MessageType::INFO, "completion triggered").await;
+
         Ok(Some(CompletionResponse::Array(vec![
             CompletionItem::new_simple("Hello".to_string(), "Some detail".to_string()),
             CompletionItem::new_simple("Bye".to_string(), "More detail".to_string()),
@@ -118,6 +127,8 @@ impl Backend {
         self.document_map.insert(params.uri.to_string(), rope.clone());
 
         let _content = params.text;
+
+        dbg!(params.uri);
 
         // let mut diagnostics = Vec::new();
 

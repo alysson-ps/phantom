@@ -55,6 +55,12 @@ pub enum Token<'a> {
     #[token("function")]
     Function,
 
+    #[token("if")]
+    If,
+
+    #[token("else")]
+    Else,
+
     #[token("public")]
     #[token("private")]
     #[token("protected")]
@@ -146,20 +152,26 @@ pub enum Token<'a> {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum Statement<'a> {
+pub(crate) enum Statement<'a> {
     Namespace {
+        kind: &'a str,
+        span: Span,
         path: Vec<&'a str>,
         with_brackets: bool,
         body: Vec<Statement<'a>>,
     },
 
     Property {
+        kind: &'a str,
+        span: Span,
         name: &'a str,
-        value: &'a str,
+        value: Option<Expr<'a>>,
         visibility: &'a str,
     },
 
     Method {
+        kind: &'a str,
+        span: Span,
         name: &'a str,
         is_static: bool,
         visibility: &'a str,
@@ -168,6 +180,7 @@ pub enum Statement<'a> {
     },
 
     Parameter {
+        kind: &'a str,
         name: &'a str,
         typed: Option<&'a str>,
         value: Option<Expr<'a>>,
@@ -177,6 +190,8 @@ pub enum Statement<'a> {
     //     expr: Expr<'a>,
     // },
     Class {
+        kind: &'a str,
+        span: Span,
         is_final: bool,
         is_abstract: bool,
         extends: Option<&'a str>,
@@ -193,14 +208,22 @@ struct Program<'a> {
 }
 
 #[derive(Debug, PartialEq)]
-enum Expr<'a> {
-    Error,
+pub(crate) enum Expr<'a> {
+    Error {
+        span: Span,
+        target: &'a str,
+    },
     List(Vec<Self>),
-    Value(Value<'a>),
+    Value {
+        kind: &'a str,
+        type_: Type,
+        value: &'a str,
+    },
     Variable(&'a str),
     Property(&'a str),
-    Number(i64),
     Binary {
+        kind: &'a str,
+        span: Span,
         left: Box<Self>,
         op: BinaryOp,
         right: Box<Self>,
@@ -212,17 +235,22 @@ enum Expr<'a> {
     Return {
         expr: Box<Option<Self>>,
     },
+    If {
+        cond: Box<Self>,
+        then: Box<Self>,
+        else_: Box<Option<Self>>,
+    },
     Call(Box<Self>, Vec<Self>),
 }
 
 #[derive(Clone, Debug, PartialEq)]
-enum Value<'a> {
+enum Type {
     Null,
-    Bool(&'a str),
-    Num(i64),
-    Str(&'a str),
-    List(Vec<Self>),
-    Func(&'a str),
+    Bool,
+    Num,
+    Str,
+    // List(Vec<Self>),
+    // Func(&'a str),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -280,6 +308,29 @@ where
                 }
             });
 
+        let val = select! {
+            Token::Null => Expr::Value{
+                kind: "Value",
+                type_: Type::Null,
+                value: "null",
+            },
+            Token::Bool(x) => Expr::Value {
+                kind: "Value",
+                type_: Type::Bool,
+                value: x,
+            },
+            Token::Number(n) => Expr::Value{
+                kind: "Value",
+                type_: Type::Num,
+                value: n,
+            },
+            Token::String(s) => Expr::Value{
+                kind: "Value",
+                type_: Type::Str,
+                value: s,
+            },
+        };
+
         let base_path = select! { Token::Identifier(name) => name };
         let path = base_path.separated_by(just(Token::Backslash)).collect().labelled("Path");
 
@@ -298,7 +349,9 @@ where
                     }
                 }),
             )
-            .map(|(path, body)| Statement::Namespace {
+            .map_with(|(path, body), e| Statement::Namespace {
+                kind: "Namespace",
+                span: e.span(),
                 path,
                 with_brackets: false,
                 body,
@@ -313,7 +366,9 @@ where
                     .collect::<Vec<_>>()
                     .delimited_by(just(Token::LBrace), just(Token::RBrace)),
             )
-            .map(|(path, body)| Statement::Namespace {
+            .map_with(|(path, body), e| Statement::Namespace {
+                kind: "Namespace",
+                span: e.span(),
                 path,
                 with_brackets: true,
                 body,
@@ -321,17 +376,23 @@ where
 
         let namespace = namespace_with_brackets.or(namespace_without_brackets);
 
+        let _value_property = just(Token::Assign).ignore_then(val);
         let property = select! {Token::Visibility(visibility) => visibility}
             .then(select! { Token::Variable(name) => name })
+            .then(_value_property.or_not())
             .then_ignore(just(Token::Semicolon))
-            .map(|(visibility, name)| Statement::Property {
+            .map_with(|((visibility, name), value), e| Statement::Property {
+                kind: "Property",
+                span: e.span(),
                 name,
-                value: "",
+                value: value,
                 visibility,
             });
 
-        let class = just(Token::Class)
-            .ignore_then(select! { Token::Identifier(name) => name })
+        let class = just(Token::Final)
+            .or_not()
+            .then_ignore(just(Token::Class))
+            .then(select! { Token::Identifier(name) => name })
             .then(
                 statement
                     .clone()
@@ -339,8 +400,10 @@ where
                     .collect::<Vec<_>>()
                     .delimited_by(just(Token::LBrace), just(Token::RBrace)),
             )
-            .map(|(name, body)| Statement::Class {
-                is_final: false,
+            .map_with(|((is_final, name), body), e| Statement::Class {
+                kind: "Class",
+                span: e.span(),
+                is_final: is_final.is_some(),
                 is_abstract: false,
                 extends: None,
                 name,
@@ -349,7 +412,7 @@ where
 
         let _arg = select! {Token::Variable(name) => name}
             .then_ignore(just(Token::Assign).or_not())
-            .then(expression().or_not());
+            .then(val.or_not());
 
         let args = _arg
             .separated_by(just(Token::Comma))
@@ -360,6 +423,7 @@ where
                 names
                     .into_iter()
                     .map(|(name, val)| Statement::Parameter {
+                        kind: "Parameter",
                         name,
                         typed: None,
                         value: val,
@@ -381,7 +445,9 @@ where
                     .delimited_by(just(Token::LBrace), just(Token::RBrace)),
             )
             .map_with(
-                |((((visibility, is_static), name), args), body), _| Statement::Method {
+                |((((visibility, is_static), name), args), body), e| Statement::Method {
+                    kind: "Method",
+                    span: e.span(),
                     name,
                     is_static: is_static.is_some(),
                     visibility,
@@ -401,10 +467,26 @@ where
     recursive(|expr| {
         let inline_expr = recursive(|inline_expr| {
             let val = select! {
-                Token::Null => Expr::Value(Value::Null),
-                Token::Bool(x) => Expr::Value(Value::Bool(x)),
-                Token::Number(n) => Expr::Value(Value::Num(n.parse().unwrap())),
-                Token::String(s) => Expr::Value(Value::Str(s)),
+                Token::Null => Expr::Value{
+                    kind: "Value",
+                    type_: Type::Null,
+                    value: "null",
+                },
+                Token::Bool(x) => Expr::Value {
+                    kind: "Value",
+                    type_: Type::Bool,
+                    value: x,
+                },
+                Token::Number(n) => Expr::Value{
+                    kind: "Value",
+                    type_: Type::Num,
+                    value: n,
+                },
+                Token::String(s) => Expr::Value{
+                    kind: "Value",
+                    type_: Type::Str,
+                    value: s,
+                },
             }
             .labelled("value");
 
@@ -414,26 +496,31 @@ where
             let items =
                 expr.clone().separated_by(just(Token::Comma)).allow_trailing().collect::<Vec<_>>();
 
-            let variable = select! {Token::Variable(name) => name}.map(|name| Expr::Variable(name));
-
-            let _var = variable
-                .then_ignore(just(Token::Assign))
-                .then(inline_expr.clone())
-                .then_ignore(just(Token::Semicolon))
-                .map(|(var, val)| Expr::Assignment {
-                    target: Box::new(var),
-                    value: Box::new(val),
-                });
+            let variable = select! {Token::Variable(name) => name}
+                .map(|name| Expr::Variable(name))
+                .labelled("variable");
 
             let property = select! {Token::Variable(name) => name}
                 .then_ignore(just(Token::Arrow))
                 .then(select! {Token::Identifier(name) => name})
+                .map(|(_name, property)| Expr::Property(property))
+                .labelled("property");
+
+            let assingment = choice((variable.clone(), property.clone()))
                 .then_ignore(just(Token::Assign))
                 .then(inline_expr.clone())
-                .map(|((_, name), val)| Expr::Assignment {
-                    target: Box::new(Expr::Property(name)),
+                .then_ignore(just(Token::Semicolon))
+                .map(|(target, val)| Expr::Assignment {
+                    target: Box::new(target),
                     value: Box::new(val),
                 });
+
+            // .then_ignore(just(Token::Assign))
+            // .then(inline_expr.clone())
+            // .map(|((_, name), val)| Expr::Assignment {
+            //     target: Box::new(Expr::Property(name)),
+            //     value: Box::new(val),
+            // });
 
             let list = items
                 .clone()
@@ -443,8 +530,8 @@ where
             // 'Atoms' are expressions that contain no ambiguity
             let atom = val
                 // .or(ident.map(Expr::Local))
-                .or(_var)
-                .or(property)
+                .or(assingment)
+                .or(property.clone())
                 .or(variable)
                 .or(list)
                 // In Nano Rust, `print` is just a keyword, just like Python 2, for simplicity
@@ -464,7 +551,10 @@ where
                         (Token::LBrace, Token::RBrace),
                         (Token::LBracket, Token::RBracket),
                     ],
-                    |span| Expr::Error,
+                    |span| Expr::Error {
+                        span,
+                        target: "parenthesised expression",
+                    },
                 )))
                 // Attempt to recover anything that looks like a list but contains errors
                 .recover_with(via_parser(nested_delimiters(
@@ -474,7 +564,10 @@ where
                         (Token::LParen, Token::RParen),
                         (Token::LBracket, Token::RBracket),
                     ],
-                    |span| Expr::Error,
+                    |span| Expr::Error {
+                        span,
+                        target: "list aqui",
+                    },
                 )))
                 .boxed();
 
@@ -496,6 +589,9 @@ where
                 just(Token::Asterisk).to(BinaryOp::Mul).or(just(Token::Slash).to(BinaryOp::Div));
             let product =
                 call.clone().foldl_with(op.then(call).repeated(), |a, (op, b), e| Expr::Binary {
+                    kind: "Binary",
+                    span: e.span(),
+
                     left: Box::new(a),
                     op,
                     right: Box::new(b),
@@ -505,6 +601,9 @@ where
             let op = just(Token::Plus).to(BinaryOp::Add).or(just(Token::Minus).to(BinaryOp::Sub));
             let sum = product.clone().foldl_with(op.then(product).repeated(), |a, (op, b), e| {
                 Expr::Binary {
+                    kind: "Binary",
+                    span: e.span(),
+
                     left: Box::new(a),
                     op,
                     right: Box::new(b),
@@ -515,6 +614,9 @@ where
             let op = just(Token::Eq).to(BinaryOp::Eq).or(just(Token::NotEq).to(BinaryOp::NotEq));
             let compare =
                 sum.clone().foldl_with(op.then(sum).repeated(), |a, (op, b), e| Expr::Binary {
+                    kind: "Binary",
+                    span: e.span(),
+
                     left: Box::new(a),
                     op,
                     right: Box::new(b),
@@ -524,6 +626,9 @@ where
             let concat =
                 compare.clone().foldl_with(op.then(compare).repeated(), |a, (op, b), e| {
                     Expr::Binary {
+                        kind: "Binary",
+                        span: e.span(),
+
                         left: Box::new(a),
                         op,
                         right: Box::new(b),
@@ -534,6 +639,9 @@ where
             let op = just(Token::And).to(BinaryOp::And).or(just(Token::Or).to(BinaryOp::Or));
             let logic = concat.clone().foldl_with(op.then(concat).repeated(), |a, (op, b), e| {
                 Expr::Binary {
+                    kind: "Binary",
+                    span: e.span(),
+
                     left: Box::new(a),
                     op,
                     right: Box::new(b),
@@ -572,7 +680,10 @@ where
                 (Token::LParen, Token::RParen),
                 (Token::LBrace, Token::RBrace),
             ],
-            |span| Expr::Error,
+            |span| Expr::Error {
+                span,
+                target: "block",
+            },
         );
 
         let block = expr
@@ -585,10 +696,25 @@ where
                     (Token::LParen, Token::RParen),
                     (Token::LBrace, Token::RBrace),
                 ],
-                |span| Expr::Error,
+                |span| Expr::Error {
+                    span,
+                    target: "block",
+                },
             )));
 
-        let block_expr = block.or(_return);
+        let _if = recursive(|if_| {
+            just(Token::If)
+                .ignore_then(expr.clone().delimited_by(just(Token::LParen), just(Token::RParen)))
+                .then(block.clone())
+                .then(just(Token::Else).ignore_then(block.clone().or(if_)).or_not())
+                .map_with(|((cond, then), else_), e| Expr::If {
+                    cond: Box::new(cond),
+                    then: Box::new(then),
+                    else_: Box::new(else_),
+                })
+        });
+
+        let block_expr = _if.or(block).or(_return);
 
         let block_chain = block_expr.clone();
 
