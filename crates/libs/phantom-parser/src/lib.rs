@@ -201,7 +201,7 @@ pub(crate) enum Statement<'a> {
 }
 
 #[derive(Debug, PartialEq)]
-struct Program<'a> {
+pub struct Program<'a> {
     kind: &'a str,
     span: Span,
     statements: Vec<Statement<'a>>,
@@ -648,7 +648,7 @@ where
                 }
             });
 
-            logic.labelled("expression").as_context()
+            logic.labelled("expression").as_context().boxed()
         });
 
         let new_line = select! { Token::Newline(n) => n }
@@ -733,7 +733,14 @@ where
     })
 }
 
-pub fn parse(source: &str) {
+#[derive(Debug)]
+pub struct ParserResult<'a> {
+    pub tokens: Vec<(Token<'a>, Span)>,
+    pub ast: Option<Program<'a>>,
+    pub parse_errors: Vec<Rich<'a, Token<'a>>>,
+}
+
+pub fn parse(source: &str) -> ParserResult{
     let token_iter = Token::lexer(source).spanned().map(|(tok, span)| match tok {
         // Turn the `Range<usize>` spans logos gives us into chumsky's `SimpleSpan` via `Into`, because it's easier
         // to work with
@@ -743,14 +750,16 @@ pub fn parse(source: &str) {
 
     let tokens: Vec<_> = token_iter.clone().collect();
 
-    dbg!(&tokens);
-
     let token_stream =
         Stream::from_iter(token_iter).map((0..source.len()).into(), |(t, s): (_, _)| (t, s.into()));
 
-    let result = parser().parse(token_stream).into_output_errors();
+    let (result, errs) = parser().parse(token_stream).into_output_errors();
     // let result =
     //     expression().repeated().collect::<Vec<_>>().parse(token_stream).into_output_errors();
 
-    dbg!(&result);
+    ParserResult {
+        tokens,
+        ast: result,
+        parse_errors: errs,
+    }
 }

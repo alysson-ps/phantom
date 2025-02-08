@@ -22,3 +22,5 @@ out/
 *.vsix
 dist/
 *.ast 
+
+phantom.log

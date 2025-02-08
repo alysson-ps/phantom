@@ -1,4 +1,6 @@
 use dashmap::DashMap;
+use phantom_logger::{debug, info};
+use phantom_parser::ParserResult;
 use ropey::Rope;
 use serde_json::Value;
 use tower_lsp::jsonrpc::Result;
@@ -126,24 +128,58 @@ impl Backend {
         let rope = ropey::Rope::from_str(&params.text);
         self.document_map.insert(params.uri.to_string(), rope.clone());
 
-        let _content = params.text;
+        let content = params.text;
+
+        let ParserResult {
+            ast,
+            parse_errors,
+            tokens,
+        } = phantom_parser::parse(&content);
+
+        debug!(format!("{:?}", ast).as_str());
+        debug!(format!("{:?}", tokens).as_str());
+        info!(format!("{:?}", parse_errors).as_str());
+
+        let diags = parse_errors
+            .into_iter()
+            .filter_map(|item| {
+                let (message, span) = match item.reason() {
+                    chumsky::error::RichReason::Custom(msg) => (msg.to_string(), item.span()),
+                    chumsky::error::RichReason::ExpectedFound { expected, found } => (
+                        "Error".to_string(),
+                        item.span(),
+                    ),
+                };
+
+                || -> Option<Diagnostic> {
+                    let start_pos = offset_to_position(span.start, &rope)?;
+                    let end_pos = offset_to_position(span.end, &rope)?;
+
+                    Some(Diagnostic::new_simple(
+                        Range::new(start_pos, end_pos),
+                        message,
+                    ))
+                }()
+            })
+            .collect::<Vec<_>>();
 
         dbg!(params.uri);
 
         // let mut diagnostics = Vec::new();
 
-        // self.client
-        //     .publish_diagnostics(params.uri.clone(), diagnostics, Some(params.version))
-        //     .await;
+        self.client
+            .publish_diagnostics(params.uri.clone(), diags, Some(params.version))
+            .await;
     }
 }
 
 #[tokio::main]
 async fn main() {
-    let (stdin, stdout) = (tokio::io::stdin(), tokio::io::stdout());
+    phantom_logger::init().expect("Failed to initialize logger");
 
-    #[cfg(feature = "runtime-agnostic")]
-    let (stdin, stdout) = (stdin.compat(), stdout.compat_write());
+    phantom_logger::info!("Starting server...");
+
+    let (stdin, stdout) = (tokio::io::stdin(), tokio::io::stdout());
 
     let (service, socket) = LspService::build(|client| Backend {
         client,
@@ -155,9 +191,9 @@ async fn main() {
     Server::new(stdin, stdout, socket).serve(service).await;
 }
 
-// fn offset_to_position(offset: usize, rope: &Rope) -> Option<Position> {
-//     let line = rope.try_char_to_line(offset).ok()?;
-//     let first_char_of_line = rope.try_line_to_char(line).ok()?;
-//     let column = offset - first_char_of_line;
-//     Some(Position::new(line as u32, column as u32))
-// }
+fn offset_to_position(offset: usize, rope: &Rope) -> Option<Position> {
+    let line = rope.try_char_to_line(offset).ok()?;
+    let first_char_of_line = rope.try_line_to_char(line).ok()?;
+    let column = offset - first_char_of_line;
+    Some(Position::new(line as u32, column as u32))
+}
