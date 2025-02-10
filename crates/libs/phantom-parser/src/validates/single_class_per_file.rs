@@ -1,18 +1,18 @@
-pub mod enforce_namespace;
-pub mod disallow_debug_functions;
-pub mod line_length;
-pub mod single_class_per_file;
-pub mod class_member_order;
+pub struct SingleClassPerFile;
 
 use chumsky::{error::Rich, input::Emitter};
 
 use crate::{config::RuleParams, Statement, Token};
 
-pub trait RuleValidator {
+use super::RuleValidator;
+
+impl RuleValidator for SingleClassPerFile {
     fn run(
         &self,
         statements: &Vec<Statement>,
-        params: RuleParams,
+        _params: RuleParams,
         emitter: &mut Emitter<Rich<Token>>,
-    );
+    ) {
+        // TODO: implement single class per file validation
+    }
 }

@@ -809,7 +809,7 @@ pub fn parse<'a>(source: &'a str, config_path: &'a str) -> ParserResult<'a> {
     // let result =
     //     expression().repeated().collect::<Vec<_>>().parse(token_stream).into_output_errors();
 
-    dbg!(&result);
+    // dbg!(&result);
     dbg!(&errs);
 
     ParserResult {
