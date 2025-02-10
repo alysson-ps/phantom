@@ -1,5 +1,6 @@
 use clap::{Args, Parser, Subcommand};
 use dialoguer::{theme::ColorfulTheme, Select};
+use phantom_parser::ParserResult;
 use strum::IntoEnumIterator;
 use strum_macros::{AsRefStr, EnumIter};
 
@@ -37,6 +38,9 @@ struct ParserArgs {
 
     #[arg(long, help = "Output debugging information", action = clap::ArgAction::Count , default_value = "0")]
     debug: u8,
+
+    #[arg(short, long, help = "Path to the config file")]
+    config: Option<String>,
 }
 
 #[derive(Debug, Clone, EnumIter, AsRefStr)]
@@ -72,9 +76,15 @@ fn parser(args: &ParserArgs) {
 
     let content = std::fs::read_to_string(&args.path).expect("Failed to read file");
 
-    let result = phantom_parser::parse(&content);
+    let config_path = args.config.clone().unwrap_or(".phantomrc".to_string());
+    let ParserResult {
+        ast,
+        parse_errors,
+        tokens,
+    } = phantom_parser::parse(&content, &config_path);
 
-    dbg!(&result);
+    // dbg!(&tokens);
+    // dbg!(&parse_errors);
 }
 
 fn main() {
@@ -89,7 +99,7 @@ fn main() {
         }
     };
 
-    dbg!(result);
+    // dbg!(result);
     // let args = Cli::parse();
     // let content = std::fs::read_to_string(&args.path).expect("Failed to read file");
 

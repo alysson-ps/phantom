@@ -1,3 +1,7 @@
+mod config;
+mod factory;
+mod validates;
+
 use chumsky::{
     error::Rich,
     extra::Err,
@@ -9,6 +13,7 @@ use chumsky::{
     span::SimpleSpan,
     IterParser, Parser,
 };
+use config::{load_config, validate};
 use logos::Logos;
 
 pub type Span = SimpleSpan;
@@ -153,6 +158,7 @@ pub enum Token<'a> {
 
 #[derive(Debug, PartialEq)]
 pub(crate) enum Statement<'a> {
+    Empty,
     Namespace {
         kind: &'a str,
         span: Span,
@@ -209,6 +215,7 @@ pub struct Program<'a> {
 
 #[derive(Debug, PartialEq)]
 pub(crate) enum Expr<'a> {
+    Local(&'a str),
     Error {
         span: Span,
         target: &'a str,
@@ -240,7 +247,12 @@ pub(crate) enum Expr<'a> {
         then: Box<Self>,
         else_: Box<Option<Self>>,
     },
-    Call(Box<Self>, Vec<Self>),
+    Call {
+        kind: &'a str,
+        span: Span,
+        func: Box<Self>,
+        args: Box<Vec<Self>>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -266,45 +278,73 @@ enum BinaryOp {
     Concat,
 }
 
-fn parser<'a, I>() -> impl Parser<'a, I, Program<'a>, Err<Rich<'a, Token<'a>>>>
+fn parser<'a, I>(
+    path: &str,
+) -> impl Parser<'a, I, Program<'a>, Err<Rich<'a, Token<'a>>>> + use<'a, '_, I>
 where
     I: ValueInput<'a, Token = Token<'a>, Span = Span>,
 {
+    let block_recovery = nested_delimiters(
+        Token::LBracket,
+        Token::RBracket,
+        [
+            (Token::LParen, Token::RParen),
+            (Token::LBrace, Token::RBrace),
+        ],
+        |span| Expr::Error {
+            span,
+            target: "block",
+        },
+    );
+
     just(Token::OpenTag)
-        .ignore_then(statement().repeated().collect())
+        .ignore_then(
+            statement()
+                .recover_with(skip_then_retry_until(
+                    block_recovery.ignored().or(any().ignored()),
+                    one_of([
+                        Token::RBrace,
+                        Token::RParen,
+                        Token::RBracket,
+                        Token::Semicolon,
+                    ])
+                    .ignored(),
+                ))
+                .repeated()
+                .collect(),
+        )
         .then_ignore(just(Token::CloseTag).or_not())
-        .map_with(|statements, e| Program {
-            kind: "Program",
-            span: e.span(),
-            statements,
+        .validate(|statements: Vec<Statement<'a>>, e, emitter| {
+            let config = load_config(path);
+
+            validate(&statements, &config, emitter);
+
+            Program {
+                kind: "Program",
+                span: e.span(),
+                statements,
+            }
         })
 }
-
-// fn expr_parser<'a, I>(
-// ) -> impl Parser<'a, I, Spanned<Expr<'a>>, Err<Rich<'a, Token<'a>, Span>>> + Clone
-// where
-//     I: ValueInput<'a, Token = Token<'a>, Span = Span>,
-// {
-// }
 
 fn statement<'a, I>() -> impl Parser<'a, I, Statement<'a>, Err<Rich<'a, Token<'a>, Span>>> + Clone
 where
     I: ValueInput<'a, Token = Token<'a>, Span = Span>,
 {
     recursive(|statement| {
-        // let expr_inline = recursive(|expr|{
-        //     let value = select! {
-        //         Token::Null => Expr::Value(Value::Null)
-        //     }.labelled("Value");
+        let new_lines = select! { Token::Newline(n) => n }
+            .repeated()
+            .at_least(1)
+            .collect::<Vec<_>>()
+            .map_with(|counts, e| (counts.iter().sum::<usize>(), e.span()))
+            .validate(|(total_count, span): (usize, SimpleSpan), _, emitter| {
+                if total_count > 2 {
+                    let span_start = span.start + 2;
 
-        //     value.as_context()
-        // });
-
-        let new_line = select! { Token::Newline(n) => n }
-            .map_with(|count, e| (count, e.span()))
-            .validate(|(count, span), _, emitter| {
-                if count > 2 {
-                    emitter.emit(Rich::custom(span, "Too many new lines"));
+                    emitter.emit(Rich::custom(
+                        Span::new(span_start, span.end),
+                        "Too many consecutive new lines",
+                    ));
                 }
             });
 
@@ -374,7 +414,8 @@ where
                 body,
             });
 
-        let namespace = namespace_with_brackets.or(namespace_without_brackets);
+        let namespace =
+            namespace_with_brackets.or(namespace_without_brackets).labelled("Namespace");
 
         let _value_property = just(Token::Assign).ignore_then(val);
         let property = select! {Token::Visibility(visibility) => visibility}
@@ -456,7 +497,7 @@ where
                 },
             );
 
-        choice((class, function, namespace, property)).padded_by(new_line.repeated())
+        choice((class, function, namespace, property)).padded_by(new_lines.repeated())
     })
 }
 
@@ -490,7 +531,7 @@ where
             }
             .labelled("value");
 
-            // let ident = select! { Token::Identifier(ident) => ident };
+            let ident = select! { Token::Identifier(ident) => ident };
 
             // A list of expressions
             let items =
@@ -522,18 +563,18 @@ where
             //     value: Box::new(val),
             // });
 
-            let list = items
+            let array = items
                 .clone()
                 .map(Expr::List)
-                .delimited_by(just(Token::LBrace), just(Token::RBrace));
+                .delimited_by(just(Token::LBracket), just(Token::RBracket));
 
             // 'Atoms' are expressions that contain no ambiguity
             let atom = val
-                // .or(ident.map(Expr::Local))
+                .or(ident.map(Expr::Local))
                 .or(assingment)
                 .or(property.clone())
                 .or(variable)
-                .or(list)
+                .or(array)
                 // In Nano Rust, `print` is just a keyword, just like Python 2, for simplicity
                 // .or(just(Token::Print)
                 // .ignore_then(
@@ -575,12 +616,13 @@ where
             let call = atom.foldl_with(
                 items
                     .delimited_by(just(Token::LParen), just(Token::RParen))
-                    .map_with(|args, e| args)
+                    .map(|args| args)
                     .repeated(),
-                |f, args, e| {
-                    dbg!(&f);
-                    dbg!(&args);
-                    Expr::Call(Box::new(f), args)
+                |f, args, e| Expr::Call {
+                    kind: "Call",
+                    span: e.span(),
+                    func: Box::new(f),
+                    args: Box::new(args),
                 },
             );
 
@@ -651,11 +693,19 @@ where
             logic.labelled("expression").as_context().boxed()
         });
 
-        let new_line = select! { Token::Newline(n) => n }
-            .map_with(|count, e| (count, e.span()))
-            .validate(|(count, span), _, emitter| {
-                if count > 2 {
-                    emitter.emit(Rich::custom(span, "Too many new lines"));
+        let new_lines = select! { Token::Newline(n) => n }
+            .repeated()
+            .at_least(1)
+            .collect::<Vec<_>>()
+            .map_with(|counts, e| (counts.iter().sum::<usize>(), e.span()))
+            .validate(|(total_count, span): (usize, SimpleSpan), _, emitter| {
+                if total_count > 2 {
+                    let span_start = span.start + 2;
+
+                    emitter.emit(Rich::custom(
+                        Span::new(span_start, span.end),
+                        "Too many consecutive new lines",
+                    ));
                 }
             });
 
@@ -718,8 +768,11 @@ where
 
         let block_chain = block_expr.clone();
 
-        block_chain.or(inline_expr).padded_by(new_line.repeated()).recover_with(
-            skip_then_retry_until(
+        block_chain
+            // TODO: warning in 'Semicolon' expression
+            .or(inline_expr.then_ignore(just(Token::Semicolon).or_not()))
+            .padded_by(new_lines.repeated())
+            .recover_with(skip_then_retry_until(
                 block_recovery.ignored().or(any().ignored()),
                 one_of([
                     Token::RBrace,
@@ -728,8 +781,7 @@ where
                     Token::Semicolon,
                 ])
                 .ignored(),
-            ),
-        )
+            ))
     })
 }
 
@@ -740,22 +792,25 @@ pub struct ParserResult<'a> {
     pub parse_errors: Vec<Rich<'a, Token<'a>>>,
 }
 
-pub fn parse(source: &str) -> ParserResult{
+pub fn parse<'a>(source: &'a str, config_path: &'a str) -> ParserResult<'a> {
     let token_iter = Token::lexer(source).spanned().map(|(tok, span)| match tok {
         // Turn the `Range<usize>` spans logos gives us into chumsky's `SimpleSpan` via `Into`, because it's easier
         // to work with
-        Ok(tok) => (tok, SimpleSpan::from(span)),
-        Err(()) => (Token::Error, SimpleSpan::from(span)),
+        Ok(tok) => (tok, span.into()),
+        Err(()) => (Token::Error, span.into()),
     });
 
     let tokens: Vec<_> = token_iter.clone().collect();
+    dbg!(&tokens);
 
-    let token_stream =
-        Stream::from_iter(token_iter).map((0..source.len()).into(), |(t, s): (_, _)| (t, s.into()));
+    let token_stream = Stream::from_iter(token_iter).map((0..source.len()).into(), |(t, s)| (t, s));
 
-    let (result, errs) = parser().parse(token_stream).into_output_errors();
+    let (result, errs) = parser(config_path).parse(token_stream).into_output_errors();
     // let result =
     //     expression().repeated().collect::<Vec<_>>().parse(token_stream).into_output_errors();
+
+    dbg!(&result);
+    dbg!(&errs);
 
     ParserResult {
         tokens,

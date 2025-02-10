@@ -134,7 +134,7 @@ impl Backend {
             ast,
             parse_errors,
             tokens,
-        } = phantom_parser::parse(&content);
+        } = phantom_parser::parse(&content, ".phantomrc");
 
         debug!(format!("{:?}", ast).as_str());
         debug!(format!("{:?}", tokens).as_str());
@@ -162,8 +162,6 @@ impl Backend {
                 }()
             })
             .collect::<Vec<_>>();
-
-        dbg!(params.uri);
 
         // let mut diagnostics = Vec::new();
 
