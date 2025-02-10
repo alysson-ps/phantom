@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 
 use crate::validates::{
-    disallow_debug_functions::DisallowDebugFunctions, enforce_namespace::EnforceNamespace,
-    RuleValidator,
+    class_member_order::ClassMemberOrder, disallow_debug_functions::DisallowDebugFunctions,
+    enforce_namespace::EnforceNamespace, line_length::LineLength,
+    single_class_per_file::SingleClassPerFile, RuleValidator,
 };
 
 pub struct RuleFactory {
@@ -18,6 +19,12 @@ impl RuleFactory {
             "disallow-debug-functions".to_string(),
             Box::new(DisallowDebugFunctions),
         );
+        rules.insert("line-length".to_string(), Box::new(LineLength));
+        rules.insert(
+            "single-class-per-file".to_string(),
+            Box::new(SingleClassPerFile),
+        );
+        rules.insert("class-member-order".to_string(), Box::new(ClassMemberOrder));
 
         Self { rules }
     }
