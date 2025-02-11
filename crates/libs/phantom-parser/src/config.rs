@@ -1,9 +1,9 @@
-use chumsky::{error::Rich, input::Emitter};
+use chumsky::{error::Rich, extra::Err, input::Emitter, span::SimpleSpan};
 use serde::Deserialize;
 use serde_json::Value;
 use std::{collections::HashMap, fs};
 
-use crate::{factory::RuleFactory, Statement, Token};
+use crate::{err::LintError, factory::RuleFactory, Statement, Token};
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct Config {
@@ -41,10 +41,15 @@ pub fn load_config(path: &str) -> Config {
     config
 }
 
-pub fn validate(statements: &Vec<Statement>, config: &Config, emitter: &mut Emitter<Rich<Token>>) {
+pub fn validate(
+    tokens: &Vec<(Token, SimpleSpan)>,
+    statements: &Vec<Statement>,
+    config: &Config,
+    emitter: &mut Emitter<Rich<Token>>,
+) {
     config.rules.iter().for_each(|(name, params)| {
         if let Some(rule) = RuleFactory::new().get_rule(name) {
-            rule.run(statements, params.clone(), emitter);
+            rule.run(tokens, statements, params.clone(), emitter);
         }
     });
 }

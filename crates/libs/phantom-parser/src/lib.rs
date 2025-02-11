@@ -1,11 +1,12 @@
 mod config;
 mod factory;
 mod validates;
+mod err;
 
 use chumsky::{
     error::Rich,
     extra::Err,
-    input::{Input, Stream, ValueInput},
+    input::{Emitter, Input, Stream, ValueInput},
     prelude::{
         any, choice, just, nested_delimiters, one_of, recursive, skip_then_retry_until, via_parser,
     },
@@ -14,6 +15,7 @@ use chumsky::{
     IterParser, Parser,
 };
 use config::{load_config, validate};
+use err::LintError;
 use logos::Logos;
 
 pub type Span = SimpleSpan;
@@ -314,16 +316,10 @@ where
                 .collect(),
         )
         .then_ignore(just(Token::CloseTag).or_not())
-        .validate(|statements: Vec<Statement<'a>>, e, emitter| {
-            let config = load_config(path);
-
-            validate(&statements, &config, emitter);
-
-            Program {
-                kind: "Program",
-                span: e.span(),
-                statements,
-            }
+        .map_with(|statements: Vec<Statement<'a>>, e| Program {
+            kind: "Program",
+            span: e.span(),
+            statements,
         })
 }
 
@@ -793,6 +789,8 @@ pub struct ParserResult<'a> {
 }
 
 pub fn parse<'a>(source: &'a str, config_path: &'a str) -> ParserResult<'a> {
+    let config = load_config(&config_path);
+
     let token_iter = Token::lexer(source).spanned().map(|(tok, span)| match tok {
         // Turn the `Range<usize>` spans logos gives us into chumsky's `SimpleSpan` via `Into`, because it's easier
         // to work with
@@ -805,7 +803,14 @@ pub fn parse<'a>(source: &'a str, config_path: &'a str) -> ParserResult<'a> {
 
     let token_stream = Stream::from_iter(token_iter).map((0..source.len()).into(), |(t, s)| (t, s));
 
-    let (result, errs) = parser(config_path).parse(token_stream).into_output_errors();
+    let (result, errs) = parser(config_path)
+        .validate(|program, _, emitter| {
+            validate(&tokens,&program.statements, &config, emitter);
+
+            program
+        })
+        .parse(token_stream)
+        .into_output_errors();
     // let result =
     //     expression().repeated().collect::<Vec<_>>().parse(token_stream).into_output_errors();
 
