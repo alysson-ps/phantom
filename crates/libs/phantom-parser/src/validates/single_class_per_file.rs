@@ -1,19 +1,13 @@
 pub struct SingleClassPerFile;
 
-use chumsky::{error::Rich, input::Emitter, span::SimpleSpan};
+use chumsky::{error::Rich, input::Emitter};
 
-use crate::{config::RuleParams, err::LintError, Statement, Token};
+use crate::{config::RuleParams, Token};
 
-use super::RuleValidator;
+use super::{Content, RuleValidator};
 
 impl RuleValidator for SingleClassPerFile {
-    fn run(
-        &self,
-        _tokens: &Vec<(Token, SimpleSpan)>,
-        statements: &Vec<Statement>,
-        _params: RuleParams,
-        emitter: &mut Emitter<Rich<Token>>,
-    ) {
+    fn run(&self, _contents: &Content, _params: RuleParams, _emitter: &mut Emitter<Rich<Token>>) {
         // TODO: implement single class per file validation
     }
 }

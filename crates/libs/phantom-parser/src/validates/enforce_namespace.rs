@@ -1,23 +1,20 @@
-use crate::{config::RuleParams, err::LintError, Token};
+use crate::{config::RuleParams, Token};
 use chumsky::{error::Rich, input::Emitter, span::SimpleSpan};
 
-use super::{RuleValidator, Statement};
+use super::{Content, RuleValidator, Statement};
 
 #[derive(Debug)]
 pub struct EnforceNamespace;
 
 impl RuleValidator for EnforceNamespace {
-    fn run(
-        &self,
-        _tokens: &Vec<(Token, SimpleSpan)>,
-        statements: &Vec<Statement>,
-        params: RuleParams,
-        emitter: &mut Emitter<Rich<Token>>,
-    ) {
+    fn run(&self, contents: &Content, params: RuleParams, emitter: &mut Emitter<Rich<Token>>) {
         let RuleParams(level, args) = &params;
 
         if level != "off" {
-            let namespace = statements
+            let namespace = contents
+                .statements
+                .as_ref()
+                .unwrap()
                 .iter()
                 .filter(|stmt| matches!(stmt, Statement::Namespace { .. }))
                 .collect::<Vec<_>>();

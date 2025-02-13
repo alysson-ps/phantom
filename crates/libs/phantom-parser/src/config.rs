@@ -3,7 +3,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use std::{collections::HashMap, fs};
 
-use crate::{err::LintError, factory::RuleFactory, Statement, Token};
+use crate::{err::LintError, factory::RuleFactory, validates::Content, Statement, Token};
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct Config {
@@ -42,14 +42,21 @@ pub fn load_config(path: &str) -> Config {
 }
 
 pub fn validate(
-    tokens: &Vec<(Token, SimpleSpan)>,
-    statements: &Vec<Statement>,
+    source: &str,
+    tokens: &Box<&Vec<(Token, SimpleSpan)>>,
+    statements: Box<&Vec<Statement>>,
     config: &Config,
     emitter: &mut Emitter<Rich<Token>>,
 ) {
+    let contents = Content {
+        source: Some(source),
+        tokens: Some(tokens),
+        statements: Some(statements),
+    };
+
     config.rules.iter().for_each(|(name, params)| {
         if let Some(rule) = RuleFactory::new().get_rule(name) {
-            rule.run(tokens, statements, params.clone(), emitter);
+            rule.run(&contents, params.clone(), emitter);
         }
     });
 }

@@ -1,28 +1,36 @@
 use chumsky::{error::Rich, input::Emitter, span::SimpleSpan};
 
-use crate::{config::RuleParams, err::LintError, Expr, Statement, Token};
+use crate::{config::RuleParams, Expr, Statement, Token};
 
-use super::RuleValidator;
+use super::{Content, RuleValidator};
 
 pub struct DisallowDebugFunctions;
 
 impl RuleValidator for DisallowDebugFunctions {
-    fn run(
-        &self,
-        _tokens: &Vec<(Token, SimpleSpan)>,
-        statements: &Vec<Statement>,
-        params: RuleParams,
-        emitter: &mut Emitter<Rich<Token>>,
-    ) {
+    fn run(&self, contents: &Content, params: RuleParams, emitter: &mut Emitter<Rich<Token>>) {
         let RuleParams(level, args) = &params;
 
         if level != "off" {
-            statements.iter().for_each(|stmt| match stmt {
+            let dev = contents.statements.as_ref().unwrap();
+
+            dev.as_ref().iter().for_each(|stmt| match stmt {
                 Statement::Namespace { body, .. } => {
-                    self.run(_tokens, body, params.clone(), emitter);
+                    let new_contents = &Content {
+                        statements: Some(Box::new(body)),
+                        source: contents.source,
+                        tokens: contents.tokens,
+                    };
+
+                    self.run(new_contents, params.clone(), emitter);
                 }
                 Statement::Class { body, .. } => {
-                    self.run(_tokens, body, params.clone(), emitter);
+                    let new_contents = &Content {
+                        statements: Some(Box::new(body)),
+                        source: contents.source,
+                        tokens: contents.tokens,
+                    };
+
+                    self.run(new_contents, params.clone(), emitter);
                 }
                 Statement::Method { body, .. } => {
                     body.iter().for_each(|expr| match &expr {

@@ -4,19 +4,15 @@
         "level": "info",
         "file": "~/phantom/logs/phantom.log"
     },
-    "files": [],
+    "files": [
+        "app/**/*.php"
+    ],
     "imports": {
         "organize": {
             "enabled": true
         }
     },
     "rules": {
-        "enforce-namespace": [
-            "error",
-            {
-                "allow-brackets": true
-            }
-        ],
         "disallow-debug-functions": [
             "warn",
             {
@@ -25,44 +21,6 @@
                     "var_dump",
                     "print_r"
                 ]
-            }
-        ],
-        "line-length": [
-            "error",
-            {
-                "max": 120
-            }
-        ],
-        "single-class-per-file": [
-            "error",
-            {}
-        ],
-        "class-member-order": [
-            "error",
-            {
-                "order": [
-                    "constants",
-                    "properties",
-                    "methods"
-                ]
-            }
-        ],
-        "array-syntax": [
-            "error",
-            {
-                "style": "short"
-            }
-        ],
-        "max-params": [
-            "warning",
-            {
-                "max": 5
-            }
-        ],
-        "no-long-functions": [
-            "warning",
-            {
-                "max-lines": 50
             }
         ]
     }

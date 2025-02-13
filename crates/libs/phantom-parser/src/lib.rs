@@ -1,7 +1,9 @@
 mod config;
+mod err;
 mod factory;
 mod validates;
-mod err;
+
+use std::{collections::HashMap, ops::Range};
 
 use chumsky::{
     error::Rich,
@@ -280,9 +282,7 @@ enum BinaryOp {
     Concat,
 }
 
-fn parser<'a, I>(
-    path: &str,
-) -> impl Parser<'a, I, Program<'a>, Err<Rich<'a, Token<'a>>>> + use<'a, '_, I>
+fn parser<'a, I>() -> impl Parser<'a, I, Program<'a>, Err<Rich<'a, Token<'a>>>>
 where
     I: ValueInput<'a, Token = Token<'a>, Span = Span>,
 {
@@ -791,6 +791,12 @@ pub struct ParserResult<'a> {
 pub fn parse<'a>(source: &'a str, config_path: &'a str) -> ParserResult<'a> {
     let config = load_config(&config_path);
 
+    let line_map = source
+        .lines()
+        .enumerate()
+        .map(|(i, line)| (i + 1, line))
+        .collect::<HashMap<usize, &str>>();
+
     let token_iter = Token::lexer(source).spanned().map(|(tok, span)| match tok {
         // Turn the `Range<usize>` spans logos gives us into chumsky's `SimpleSpan` via `Into`, because it's easier
         // to work with
@@ -799,13 +805,20 @@ pub fn parse<'a>(source: &'a str, config_path: &'a str) -> ParserResult<'a> {
     });
 
     let tokens: Vec<_> = token_iter.clone().collect();
-    dbg!(&tokens);
+    check_line_length(&tokens, &line_map, 80);
+    // dbg!(&tokens);
 
     let token_stream = Stream::from_iter(token_iter).map((0..source.len()).into(), |(t, s)| (t, s));
 
-    let (result, errs) = parser(config_path)
-        .validate(|program, _, emitter| {
-            validate(&tokens,&program.statements, &config, emitter);
+    let (result, errs) = parser()
+        .validate(|program, e, emitter| {
+            validate(
+                &source,
+                &Box::new(&tokens),
+                Box::new(&program.statements),
+                &config,
+                emitter,
+            );
 
             program
         })
@@ -815,11 +828,52 @@ pub fn parse<'a>(source: &'a str, config_path: &'a str) -> ParserResult<'a> {
     //     expression().repeated().collect::<Vec<_>>().parse(token_stream).into_output_errors();
 
     // dbg!(&result);
-    dbg!(&errs);
+    // dbg!(&errs);
 
     ParserResult {
         tokens,
         ast: result,
         parse_errors: errs,
+    }
+}
+
+fn map_offsets_to_lines(source: &str) -> HashMap<usize, usize> {
+    let mut line_map = HashMap::new();
+    let mut line = 1;
+
+    for (offset, c) in source.chars().enumerate() {
+        line_map.insert(offset, line);
+        if c == '\n' {
+            line += 1;
+        }
+    }
+
+    line_map
+}
+
+fn check_line_length(
+    tokens: &Vec<(Token, Span)>,
+    line_map: &HashMap<usize, &str>,
+    max_length: usize,
+) {
+    let mut checked_lines = std::collections::HashSet::new(); // Evitar contar a mesma linha várias vezes
+
+    for (_, span) in tokens {
+        let line_number = span.start; // Pega a linha do primeiro caractere do token
+        if checked_lines.contains(&line_number) {
+            continue; // Já verificamos essa linha, então pulamos
+        }
+
+        if let Some(line) = line_map.get(&line_number) {
+            let length = line.chars().count(); // Conta caracteres REAIS, não offsets
+            if length > max_length {
+                println!(
+                    "⚠️ Erro: Linha {} tem {} caracteres (máx: {})",
+                    line_number, length, max_length
+                );
+            }
+        }
+
+        checked_lines.insert(line_number);
     }
 }
