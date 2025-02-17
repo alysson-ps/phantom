@@ -1,4 +1,4 @@
-use chumsky::{error::Rich, input::Emitter, span::SimpleSpan};
+use chumsky::{error::Rich, input::Emitter};
 
 use crate::{config::RuleParams, Expr, Statement, Token};
 
@@ -11,9 +11,9 @@ impl RuleValidator for DisallowDebugFunctions {
         let RuleParams(level, args) = &params;
 
         if level != "off" {
-            let dev = contents.statements.as_ref().unwrap();
+            let statements = contents.statements.as_ref().unwrap();
 
-            dev.as_ref().iter().for_each(|stmt| match stmt {
+            statements.as_ref().iter().for_each(|stmt| match stmt {
                 Statement::Namespace { body, .. } => {
                     let new_contents = &Content {
                         statements: Some(Box::new(body)),

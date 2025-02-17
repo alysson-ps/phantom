@@ -17,7 +17,6 @@ use chumsky::{
     IterParser, Parser,
 };
 use config::{load_config, validate};
-use err::LintError;
 use logos::Logos;
 
 pub type Span = SimpleSpan;
@@ -28,8 +27,8 @@ pub enum Token<'a> {
     #[regex(r"[ \t\f]+", logos::skip)]
     Whitespace,
 
-    #[regex(r"\n+", |lex| lex.slice().len())]
-    Newline(usize),
+    #[regex(r"\n")]
+    Newline,
 
     #[regex(r"//[^\n]*", logos::skip)]
     SingleLineComment,
@@ -328,12 +327,14 @@ where
     I: ValueInput<'a, Token = Token<'a>, Span = Span>,
 {
     recursive(|statement| {
-        let new_lines = select! { Token::Newline(n) => n }
+        let new_lines = just(Token::Newline)
             .repeated()
             .at_least(1)
             .collect::<Vec<_>>()
-            .map_with(|counts, e| (counts.iter().sum::<usize>(), e.span()))
+            .map_with(|n, e| (n.len(), e.span()))
             .validate(|(total_count, span): (usize, SimpleSpan), _, emitter| {
+                dbg!(total_count);
+
                 if total_count > 2 {
                     let span_start = span.start + 2;
 
@@ -689,11 +690,11 @@ where
             logic.labelled("expression").as_context().boxed()
         });
 
-        let new_lines = select! { Token::Newline(n) => n }
+        let new_lines = just(Token::Newline)
             .repeated()
             .at_least(1)
             .collect::<Vec<_>>()
-            .map_with(|counts, e| (counts.iter().sum::<usize>(), e.span()))
+            .map_with(|n, e| (n.len(), e.span()))
             .validate(|(total_count, span): (usize, SimpleSpan), _, emitter| {
                 if total_count > 2 {
                     let span_start = span.start + 2;
@@ -791,12 +792,6 @@ pub struct ParserResult<'a> {
 pub fn parse<'a>(source: &'a str, config_path: &'a str) -> ParserResult<'a> {
     let config = load_config(&config_path);
 
-    let line_map = source
-        .lines()
-        .enumerate()
-        .map(|(i, line)| (i + 1, line))
-        .collect::<HashMap<usize, &str>>();
-
     let token_iter = Token::lexer(source).spanned().map(|(tok, span)| match tok {
         // Turn the `Range<usize>` spans logos gives us into chumsky's `SimpleSpan` via `Into`, because it's easier
         // to work with
@@ -805,8 +800,7 @@ pub fn parse<'a>(source: &'a str, config_path: &'a str) -> ParserResult<'a> {
     });
 
     let tokens: Vec<_> = token_iter.clone().collect();
-    check_line_length(&tokens, &line_map, 80);
-    // dbg!(&tokens);
+    dbg!(&tokens);
 
     let token_stream = Stream::from_iter(token_iter).map((0..source.len()).into(), |(t, s)| (t, s));
 
@@ -828,52 +822,11 @@ pub fn parse<'a>(source: &'a str, config_path: &'a str) -> ParserResult<'a> {
     //     expression().repeated().collect::<Vec<_>>().parse(token_stream).into_output_errors();
 
     // dbg!(&result);
-    // dbg!(&errs);
+    dbg!(&errs);
 
     ParserResult {
         tokens,
         ast: result,
         parse_errors: errs,
-    }
-}
-
-fn map_offsets_to_lines(source: &str) -> HashMap<usize, usize> {
-    let mut line_map = HashMap::new();
-    let mut line = 1;
-
-    for (offset, c) in source.chars().enumerate() {
-        line_map.insert(offset, line);
-        if c == '\n' {
-            line += 1;
-        }
-    }
-
-    line_map
-}
-
-fn check_line_length(
-    tokens: &Vec<(Token, Span)>,
-    line_map: &HashMap<usize, &str>,
-    max_length: usize,
-) {
-    let mut checked_lines = std::collections::HashSet::new(); // Evitar contar a mesma linha várias vezes
-
-    for (_, span) in tokens {
-        let line_number = span.start; // Pega a linha do primeiro caractere do token
-        if checked_lines.contains(&line_number) {
-            continue; // Já verificamos essa linha, então pulamos
-        }
-
-        if let Some(line) = line_map.get(&line_number) {
-            let length = line.chars().count(); // Conta caracteres REAIS, não offsets
-            if length > max_length {
-                println!(
-                    "⚠️ Erro: Linha {} tem {} caracteres (máx: {})",
-                    line_number, length, max_length
-                );
-            }
-        }
-
-        checked_lines.insert(line_number);
     }
 }

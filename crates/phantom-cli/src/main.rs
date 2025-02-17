@@ -52,7 +52,7 @@ enum Framework {
 }
 
 fn initialize(args: &InitArgs) {
-    dbg!(args);
+    // dbg!(args);
 
     let frameworks: Vec<String> =
         Framework::iter().map(|f| f.as_ref().to_string().to_lowercase()).collect();

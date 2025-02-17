@@ -143,21 +143,45 @@ impl Backend {
         let diags = parse_errors
             .into_iter()
             .filter_map(|item| {
-                let (message, span) = match item.reason() {
-                    chumsky::error::RichReason::Custom(msg) => (msg.to_string(), item.span()),
-                    chumsky::error::RichReason::ExpectedFound { expected, found } => (
-                        "Error".to_string(),
-                        item.span(),
-                    ),
+                let (severity, message, span) = match item.reason() {
+                    chumsky::error::RichReason::Custom(msg) => {
+                        let (level, message) = parse_message(&msg);
+
+                        let severity = match level {
+                            "error" => DiagnosticSeverity::ERROR,
+                            "warn" => DiagnosticSeverity::WARNING,
+                            "info" => DiagnosticSeverity::INFORMATION,
+                            "hint" => DiagnosticSeverity::HINT,
+                            _ => todo!(),
+                        };
+
+                        (severity, message.to_string(), item.span())
+                    }
+                    chumsky::error::RichReason::ExpectedFound { expected, found } => {
+                        dbg!(&expected);
+                        dbg!(&found);
+                        (DiagnosticSeverity::ERROR, "Error".to_string(), item.span())
+                    }
                 };
 
                 || -> Option<Diagnostic> {
                     let start_pos = offset_to_position(span.start, &rope)?;
                     let end_pos = offset_to_position(span.end, &rope)?;
 
-                    Some(Diagnostic::new_simple(
+                    Some(Diagnostic::new(
                         Range::new(start_pos, end_pos),
+                        Some(severity),
+                        None,
+                        Some("phantom-server".to_string()),
                         message,
+                        Some(vec![DiagnosticRelatedInformation {
+                            location: Location {
+                                uri: params.uri.clone(),
+                                range: Range::new(start_pos, end_pos),
+                            },
+                            message: "This is a related information".to_string(),
+                        }]),
+                        None,
                     ))
                 }()
             })
@@ -194,4 +218,8 @@ fn offset_to_position(offset: usize, rope: &Rope) -> Option<Position> {
     let first_char_of_line = rope.try_line_to_char(line).ok()?;
     let column = offset - first_char_of_line;
     Some(Position::new(line as u32, column as u32))
+}
+
+fn parse_message(message: &str) -> (&str, &str) {
+    message.strip_prefix('[').unwrap().split_once("] ").unwrap()
 }

@@ -1,24 +1,16 @@
-use chumsky::error::Rich;
+use chumsky::{error::Rich, span::SimpleSpan};
 
 use crate::Token;
 
 #[derive(Debug, Clone)]
-pub struct LintError<'a> {
-    pub rich: Rich<'a, Token<'a>>,
-    pub level: LintLevel,
+pub struct LintError {
+    pub message: String,
+    pub level: String,
+    pub span: SimpleSpan,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum LintLevel {
-    Error,
-    Warning,
-}
-
-impl<'a> From<Rich<'a, Token<'a>>> for LintError<'a> {
-    fn from(rich: Rich<'a, Token<'a>>) -> Self {
-        LintError {
-            rich,
-            level: LintLevel::Error,
-        }
+impl<'a> From<LintError> for Rich<'a, Token<'a>> {
+    fn from(value: LintError) -> Self {
+        Rich::custom(value.span, format!("[{}] {}", value.level, value.message))
     }
 }
