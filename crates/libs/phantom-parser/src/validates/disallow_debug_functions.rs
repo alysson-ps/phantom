@@ -16,18 +16,18 @@ impl RuleValidator for DisallowDebugFunctions {
             statements.as_ref().iter().for_each(|stmt| match stmt {
                 Statement::Namespace { body, .. } => {
                     let new_contents = &Content {
-                        statements: Some(Box::new(body)),
+                        statements: Some(Box::new(body.clone())),
                         source: contents.source,
-                        tokens: contents.tokens,
+                        tokens: contents.tokens.clone(),
                     };
 
                     self.run(new_contents, params.clone(), emitter);
                 }
                 Statement::Class { body, .. } => {
                     let new_contents = &Content {
-                        statements: Some(Box::new(body)),
+                        statements: Some(Box::new(body.clone())),
                         source: contents.source,
-                        tokens: contents.tokens,
+                        tokens: contents.tokens.clone(),
                     };
 
                     self.run(new_contents, params.clone(), emitter);

@@ -3,8 +3,6 @@ mod err;
 mod factory;
 mod validates;
 
-use std::{collections::HashMap, ops::Range};
-
 use chumsky::{
     error::Rich,
     extra::Err,
@@ -14,7 +12,7 @@ use chumsky::{
     },
     select,
     span::SimpleSpan,
-    IterParser, Parser,
+    text, IterParser, Parser,
 };
 use config::{load_config, validate};
 use logos::Logos;
@@ -24,8 +22,16 @@ pub type Spanned<T> = (T, Span);
 
 #[derive(Debug, Logos, PartialEq, Clone)]
 pub enum Token<'a> {
-    #[regex(r"[ \t\f]+", logos::skip)]
+    #[regex(r"[ \t]+", callback = |lex| {
+        let slice = lex.slice();
+        if slice.len() == 1 {
+            Token::Whitespace
+        } else {
+            Token::Tab(slice.len())
+        }
+    })]
     Whitespace,
+    Tab(usize),
 
     #[regex(r"\n")]
     Newline,
@@ -159,7 +165,7 @@ pub enum Token<'a> {
     Error,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub(crate) enum Statement<'a> {
     Empty,
     Namespace {
@@ -209,14 +215,14 @@ pub(crate) enum Statement<'a> {
     },
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Program<'a> {
     kind: &'a str,
     span: Span,
     statements: Vec<Statement<'a>>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub(crate) enum Expr<'a> {
     Local(&'a str),
     Error {
@@ -792,27 +798,38 @@ pub struct ParserResult<'a> {
 pub fn parse<'a>(source: &'a str, config_path: &'a str) -> ParserResult<'a> {
     let config = load_config(&config_path);
 
-    let token_iter = Token::lexer(source).spanned().map(|(tok, span)| match tok {
-        // Turn the `Range<usize>` spans logos gives us into chumsky's `SimpleSpan` via `Into`, because it's easier
-        // to work with
-        Ok(tok) => (tok, span.into()),
-        Err(()) => (Token::Error, span.into()),
-    });
+    let lexer = Token::lexer(source);
 
-    let tokens: Vec<_> = token_iter.clone().collect();
+    let token_iter = lexer
+        .clone()
+        .spanned()
+        .filter(|(token, _span)| !matches!(token, Ok(Token::Whitespace | Token::Tab(_))))
+        .map(|(tok, span)| match tok {
+            // Turn the `Range<usize>` spans logos gives us into chumsky's `SimpleSpan` via `Into`, because it's easier
+            // to work with
+            Ok(tok) => (tok, span.into()),
+            Err(()) => (Token::Error, span.into()),
+        });
+
+    let tokens: Vec<_> = lexer
+        .clone()
+        .spanned()
+        .map(|(tok, span)| match tok {
+            // Turn the `Range<usize>` spans logos gives us into chumsky's `SimpleSpan` via `Into`, because it's easier
+            // to work with
+            Ok(tok) => (tok, span.into()),
+            Err(()) => (Token::Error, span.into()),
+        })
+        .collect();
     dbg!(&tokens);
 
     let token_stream = Stream::from_iter(token_iter).map((0..source.len()).into(), |(t, s)| (t, s));
 
     let (result, errs) = parser()
-        .validate(|program, e, emitter| {
-            validate(
-                &source,
-                &Box::new(&tokens),
-                Box::new(&program.statements),
-                &config,
-                emitter,
-            );
+        .validate(|program, _e, emitter| {
+            let lexer_ref = Box::new(lexer.clone());
+            let statements_ref = Box::new(program.statements.clone());
+            validate(&source, lexer_ref, statements_ref, &config, emitter);
 
             program
         })
