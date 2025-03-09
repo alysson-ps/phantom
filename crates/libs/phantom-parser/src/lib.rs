@@ -1,20 +1,20 @@
 mod config;
-mod err;
+pub mod err;
 mod factory;
 mod validates;
 
 use chumsky::{
-    error::Rich,
     extra::Err,
-    input::{Emitter, Input, Stream, ValueInput},
+    input::{Input, Stream, ValueInput},
     prelude::{
         any, choice, just, nested_delimiters, one_of, recursive, skip_then_retry_until, via_parser,
     },
     select,
     span::SimpleSpan,
-    text, IterParser, Parser,
+    IterParser, Parser,
 };
 use config::{load_config, validate};
+use err::rich::RichError;
 use logos::Logos;
 
 pub type Span = SimpleSpan;
@@ -287,7 +287,7 @@ enum BinaryOp {
     Concat,
 }
 
-fn parser<'a, I>() -> impl Parser<'a, I, Program<'a>, Err<Rich<'a, Token<'a>>>>
+fn parser<'a, I>() -> impl Parser<'a, I, Program<'a>, Err<RichError<'a, Token<'a>, Span>>>
 where
     I: ValueInput<'a, Token = Token<'a>, Span = Span>,
 {
@@ -328,7 +328,8 @@ where
         })
 }
 
-fn statement<'a, I>() -> impl Parser<'a, I, Statement<'a>, Err<Rich<'a, Token<'a>, Span>>> + Clone
+fn statement<'a, I>(
+) -> impl Parser<'a, I, Statement<'a>, Err<RichError<'a, Token<'a>, Span>>> + Clone
 where
     I: ValueInput<'a, Token = Token<'a>, Span = Span>,
 {
@@ -339,14 +340,14 @@ where
             .collect::<Vec<_>>()
             .map_with(|n, e| (n.len(), e.span()))
             .validate(|(total_count, span): (usize, SimpleSpan), _, emitter| {
-                dbg!(total_count);
-
                 if total_count > 2 {
                     let span_start = span.start + 2;
 
-                    emitter.emit(Rich::custom(
+                    emitter.emit(RichError::custom(
                         Span::new(span_start, span.end),
+                        "error".to_string(),
                         "Too many consecutive new lines",
+                        true,
                     ));
                 }
             });
@@ -383,9 +384,11 @@ where
             .then(
                 statement.clone().repeated().collect::<Vec<_>>().try_map(|body, span| {
                     if body.iter().any(|stmt| matches!(stmt, Statement::Namespace { .. })) {
-                        Err(Rich::custom(
+                        Err(RichError::custom(
                             span,
-                            "Nested namespaces are not allowed in this context.",
+                            "error".to_string(),
+                            "Nested namespaces are not allowed in this context.".to_string(),
+                            false,
                         ))
                     } else {
                         Ok(body)
@@ -504,7 +507,7 @@ where
     })
 }
 
-fn expression<'a, I>() -> impl Parser<'a, I, Expr<'a>, Err<Rich<'a, Token<'a>, Span>>> + Clone
+fn expression<'a, I>() -> impl Parser<'a, I, Expr<'a>, Err<RichError<'a, Token<'a>, Span>>> + Clone
 where
     I: ValueInput<'a, Token = Token<'a>, Span = Span>,
 {
@@ -578,12 +581,6 @@ where
                 .or(property.clone())
                 .or(variable)
                 .or(array)
-                // In Nano Rust, `print` is just a keyword, just like Python 2, for simplicity
-                // .or(just(Token::Print)
-                // .ignore_then(
-                //     expr.clone().delimited_by(just(Token::Ctrl('(')), just(Token::Ctrl(')'))),
-                // )
-                // .map(|expr| Expr::Print(Box::new(expr))))
                 .map_with(|expr, _span| expr)
                 // Atoms can also just be normal expressions, but surrounded with parentheses
                 .or(expr.clone().delimited_by(just(Token::LParen), just(Token::RParen)))
@@ -705,9 +702,11 @@ where
                 if total_count > 2 {
                     let span_start = span.start + 2;
 
-                    emitter.emit(Rich::custom(
+                    emitter.emit(RichError::custom(
                         Span::new(span_start, span.end),
+                        "error".to_string(),
                         "Too many consecutive new lines",
+                        true,
                     ));
                 }
             });
@@ -760,7 +759,7 @@ where
                 .ignore_then(expr.clone().delimited_by(just(Token::LParen), just(Token::RParen)))
                 .then(block.clone())
                 .then(just(Token::Else).ignore_then(block.clone().or(if_)).or_not())
-                .map_with(|((cond, then), else_), e| Expr::If {
+                .map_with(|((cond, then), else_), _e| Expr::If {
                     cond: Box::new(cond),
                     then: Box::new(then),
                     else_: Box::new(else_),
@@ -792,7 +791,7 @@ where
 pub struct ParserResult<'a> {
     pub tokens: Vec<(Token<'a>, Span)>,
     pub ast: Option<Program<'a>>,
-    pub parse_errors: Vec<Rich<'a, Token<'a>>>,
+    pub parse_errors: Vec<RichError<'a, Token<'a>>>,
 }
 
 pub fn parse<'a>(source: &'a str, config_path: &'a str) -> ParserResult<'a> {
@@ -817,26 +816,26 @@ pub fn parse<'a>(source: &'a str, config_path: &'a str) -> ParserResult<'a> {
         .map(|(tok, span)| match tok {
             // Turn the `Range<usize>` spans logos gives us into chumsky's `SimpleSpan` via `Into`, because it's easier
             // to work with
-            Ok(tok) => (tok, span.into()),
+            Ok(tok) => (tok, SimpleSpan::from(span)),
             Err(()) => (Token::Error, span.into()),
         })
         .collect();
-    dbg!(&tokens);
 
     let token_stream = Stream::from_iter(token_iter).map((0..source.len()).into(), |(t, s)| (t, s));
 
     let (result, errs) = parser()
         .validate(|program, _e, emitter| {
-            let lexer_ref = Box::new(lexer.clone());
+            let lexer_ref = &mut Box::new(tokens.clone());
             let statements_ref = Box::new(program.statements.clone());
+
             validate(&source, lexer_ref, statements_ref, &config, emitter);
 
             program
         })
         .parse(token_stream)
         .into_output_errors();
-    // let result =
-    //     expression().repeated().collect::<Vec<_>>().parse(token_stream).into_output_errors();
+
+    // let (result, errs) = parser().parse(token_stream).into_output_errors();
 
     // dbg!(&result);
     dbg!(&errs);

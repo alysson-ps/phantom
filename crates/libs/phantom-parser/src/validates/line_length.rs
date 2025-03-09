@@ -1,7 +1,7 @@
-use chumsky::{error::Rich, input::Emitter, span::SimpleSpan};
+use chumsky::{input::Emitter, span::SimpleSpan};
 use itertools::Itertools;
 
-use crate::{config::RuleParams, err::LintError, Token};
+use crate::{config::RuleParams, err::rich::RichError, Token};
 
 use super::{Content, RuleValidator};
 
@@ -10,9 +10,9 @@ pub struct LineLength;
 impl RuleValidator for LineLength {
     fn run(
         &self,
-        contents: &Content,
+        contents: &mut Content,
         params: RuleParams,
-        emitter: &mut Emitter<Rich<'_, Token<'_>>>,
+        emitter: &mut Emitter<RichError<'_, Token<'_>>>,
     ) {
         let RuleParams(level, args) = params;
 
@@ -22,7 +22,6 @@ impl RuleValidator for LineLength {
 
                 let line_map: Vec<_> = contents
                     .source
-                    .unwrap()
                     .lines()
                     .enumerate()
                     .map(|(i, line)| (i + 1, line.chars().count() + 1))
@@ -33,17 +32,15 @@ impl RuleValidator for LineLength {
 
                 for (line_number, length) in &line_map {
                     if *length > (max as usize) {
-                        let error: Rich<Token> = LintError {
-                            level: level.clone(),
-                            message: format!(
+                        emitter.emit(RichError::custom(
+                            SimpleSpan::new(span_start, span_start + length),
+                            level.clone(),
+                            format!(
                                 "Line {} has {} characters (max: {})",
                                 line_number, length, max
                             ),
-                            span: SimpleSpan::new(span_start, span_start + length),
-                        }
-                        .into();
-
-                        emitter.emit(error);
+                            true,
+                        ));
                     }
 
                     span_start += length;

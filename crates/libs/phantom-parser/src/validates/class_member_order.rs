@@ -2,28 +2,35 @@ pub struct ClassMemberOrder;
 
 use std::{collections::HashMap, ops::Index};
 
-use chumsky::{error::Rich, input::Emitter};
+use chumsky::input::Emitter;
 
-use crate::{config::RuleParams, Statement, Token};
+use crate::{config::RuleParams, err::rich::RichError, Statement, Token};
 
 use super::{Content, RuleValidator};
 
 impl RuleValidator for ClassMemberOrder {
-    fn run(&self, contents: &Content, params: RuleParams, emitter: &mut Emitter<Rich<Token>>) {
+    fn run<'a>(
+        &self,
+        contents: &'a mut Content<'a>,
+        params: RuleParams,
+        emitter: &mut Emitter<RichError<Token>>,
+    ) {
         let RuleParams(level, args) = &params;
 
         if level != "off" {
-            let statements = contents.statements.as_ref().unwrap();
+            let statements = contents.statements.as_ref();
 
-            statements.as_ref().iter().for_each(|stmt| match stmt {
+            statements.iter().for_each(|stmt| match stmt {
                 Statement::Namespace { body, .. } => {
-                    let new_contents = &Content {
-                        statements: Some(Box::new(body.clone())),
-                        source: contents.source,
-                        tokens: contents.tokens.clone(),
-                    };
+                    let token_ref = &mut contents.tokens.clone();
 
-                    self.run(new_contents, params.clone(), emitter)
+                    let mut new_contents = Box::new(Content {
+                        statements: Box::new(body.clone()),
+                        source: contents.source,
+                        tokens: token_ref,
+                    });
+
+                    self.run(&mut new_contents, params.clone(), emitter)
                 }
                 Statement::Class { body, .. } => {
                     let methods = body
@@ -49,12 +56,15 @@ impl RuleValidator for ClassMemberOrder {
                         methods.iter().for_each(|(member_type, name, span)| {
                             if let Some(&current_index) = sort.get(member_type) {
                                 if current_index < last_index {
-                                    emitter.emit(Rich::custom(
+                                    emitter.emit(RichError::custom(
                                         **span,
+                                        "error".to_string(),
                                         format!(
                                             "Member \"{}\" should be declared after {}",
-                                            name, order.to_vec().index(last_index).to_string()
+                                            name,
+                                            order.to_vec().index(last_index).to_string()
                                         ),
+                                        true,
                                     ));
                                 }
                                 last_index = current_index;

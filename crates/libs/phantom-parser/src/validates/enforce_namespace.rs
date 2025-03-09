@@ -1,5 +1,5 @@
-use crate::{config::RuleParams, Token};
-use chumsky::{error::Rich, input::Emitter, span::SimpleSpan};
+use crate::{config::RuleParams, err::rich::RichError, Token};
+use chumsky::{input::Emitter, span::SimpleSpan};
 
 use super::{Content, RuleValidator, Statement};
 
@@ -7,20 +7,29 @@ use super::{Content, RuleValidator, Statement};
 pub struct EnforceNamespace;
 
 impl RuleValidator for EnforceNamespace {
-    fn run(&self, contents: &Content, params: RuleParams, emitter: &mut Emitter<Rich<Token>>) {
+    fn run(
+        &self,
+        contents: &mut Content,
+        params: RuleParams,
+        emitter: &mut Emitter<RichError<Token>>,
+    ) {
         let RuleParams(level, args) = &params;
 
         if level != "off" {
             let namespace = contents
                 .statements
                 .as_ref()
-                .unwrap()
                 .iter()
                 .filter(|stmt| matches!(stmt, Statement::Namespace { .. }))
                 .collect::<Vec<_>>();
 
             if namespace.clone().is_empty() {
-                emitter.emit(Rich::custom(SimpleSpan::new(0, 0), "No namespaces found"));
+                emitter.emit(RichError::custom(
+                    SimpleSpan::new(0, 0),
+                    "error".to_string(),
+                    "No namespaces found",
+                    false,
+                ));
             }
 
             if let Some(value) = args {
@@ -34,9 +43,11 @@ impl RuleValidator for EnforceNamespace {
                 }) = namespace.first()
                 {
                     if !allow_brackets && *with_brackets {
-                        emitter.emit(Rich::custom(
+                        emitter.emit(RichError::custom(
                             *span,
+                            "error".to_string(),
                             format!("Namespaces with brackets are not allowed"),
+                            false,
                         ));
                     }
                 }

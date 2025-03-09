@@ -1,6 +1,6 @@
 use dashmap::DashMap;
 use phantom_logger::{debug, info};
-use phantom_parser::ParserResult;
+use phantom_parser::{err::rich::RichReason, ParserResult};
 use ropey::Rope;
 use serde_json::Value;
 use tower_lsp::jsonrpc::Result;
@@ -144,10 +144,11 @@ impl Backend {
             .into_iter()
             .filter_map(|item| {
                 let (severity, message, span) = match item.reason() {
-                    chumsky::error::RichReason::Custom(msg) => {
-                        let (level, message) = parse_message(&msg);
+                    RichReason::Custom(msg) => {
+                        dbg!(msg);
+                        let level = item.level();
 
-                        let severity = match level {
+                        let severity = match level.to_string().as_str() {
                             "error" => DiagnosticSeverity::ERROR,
                             "warn" => DiagnosticSeverity::WARNING,
                             "info" => DiagnosticSeverity::INFORMATION,
@@ -155,13 +156,13 @@ impl Backend {
                             _ => todo!(),
                         };
 
-                        (severity, message.to_string(), item.span())
+                        (severity, msg, item.span())
                     }
-                    chumsky::error::RichReason::ExpectedFound { expected, found } => {
-                        dbg!(&expected);
-                        dbg!(&found);
-                        (DiagnosticSeverity::ERROR, "Error".to_string(), item.span())
-                    }
+                    RichReason::ExpectedFound { expected, found } => (
+                        DiagnosticSeverity::ERROR,
+                        &format!("Expected: {:?}, found: {:?}", expected, found),
+                        item.span(),
+                    ),
                 };
 
                 || -> Option<Diagnostic> {
@@ -173,7 +174,7 @@ impl Backend {
                         Some(severity),
                         None,
                         Some("phantom-server".to_string()),
-                        message,
+                        message.clone(),
                         Some(vec![DiagnosticRelatedInformation {
                             location: Location {
                                 uri: params.uri.clone(),
@@ -218,8 +219,4 @@ fn offset_to_position(offset: usize, rope: &Rope) -> Option<Position> {
     let first_char_of_line = rope.try_line_to_char(line).ok()?;
     let column = offset - first_char_of_line;
     Some(Position::new(line as u32, column as u32))
-}
-
-fn parse_message(message: &str) -> (&str, &str) {
-    message.strip_prefix('[').unwrap().split_once("] ").unwrap()
 }

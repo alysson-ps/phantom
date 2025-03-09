@@ -1,19 +1,19 @@
 pub struct SingleClassPerFile;
 
-use chumsky::{error::Rich, input::Emitter};
+use chumsky::input::Emitter;
 
-use crate::{config::RuleParams, Token};
+use crate::{config::RuleParams, err::rich::RichError, Token};
 
 use super::{Content, RuleValidator, Statement};
 
 impl RuleValidator for SingleClassPerFile {
-    fn run(&self, contents: &Content, params: RuleParams, emitter: &mut Emitter<Rich<Token>>) {
+    fn run(&self, contents: &mut Content, params: RuleParams, emitter: &mut Emitter<RichError<Token>>) {
         let RuleParams(level, _) = &params;
 
         if level != "off" {
-            let statements = contents.statements.as_ref().unwrap();
+            let statements = contents.statements.as_ref();
 
-            statements.as_ref().iter().for_each(|stmt| match stmt {
+            statements.iter().for_each(|stmt| match stmt {
                 Statement::Namespace { body, span, .. } => {
                     let class_statement = body
                         .iter()
@@ -21,9 +21,11 @@ impl RuleValidator for SingleClassPerFile {
                         .collect::<Vec<_>>();
 
                     if class_statement.len() > 1 {
-                        emitter.emit(Rich::custom(
+                        emitter.emit(RichError::custom(
                             *span,
+                            "error".to_string(),
                             "More than one class per namespace is not allowed",
+                            false,
                         ));
                     }
                 }
@@ -34,9 +36,11 @@ impl RuleValidator for SingleClassPerFile {
                         .collect::<Vec<_>>();
 
                     if class_statement.len() > 1 {
-                        emitter.emit(Rich::custom(
+                        emitter.emit(RichError::custom(
                             *span,
+                            "error".to_string(),
                             "More than one class per file is not allowed",
+                            false,
                         ));
                     }
                 }

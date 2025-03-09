@@ -4,7 +4,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use std::{collections::HashMap, fs};
 
-use crate::{factory::RuleFactory, validates::Content, Statement, Token};
+use crate::{err::rich::RichError, factory::RuleFactory, validates::Content, Statement, Token};
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct Config {
@@ -44,20 +44,21 @@ pub fn load_config(path: &str) -> Config {
 
 pub fn validate<'a>(
     source: &'a str,
-    tokens: Box<Lexer<'a, Token<'a>>>,
+    tokens: &'a mut Box<Vec<(Token<'a>, SimpleSpan)>>,
     statements: Box<Vec<Statement<'a>>>,
     config: &Config,
-    emitter: &mut Emitter<Rich<Token>>,
+    emitter: &mut Emitter<RichError<Token>>,
 ) {
-    let contents = Content {
-        source: Some(source),
-        tokens: Some(tokens),
-        statements: Some(statements),
-    };
-
     config.rules.iter().for_each(|(name, params)| {
+        let tokens_ref = &mut tokens.clone();
+        let mut contents = Box::new(Content {
+            source,
+            tokens: tokens_ref,
+            statements: statements.clone(),
+        });
+
         if let Some(rule) = RuleFactory::new().get_rule(name) {
-            rule.run(&contents, params.clone(), emitter);
+            rule.run(&mut contents, params.clone(), emitter);
         }
     });
 }
