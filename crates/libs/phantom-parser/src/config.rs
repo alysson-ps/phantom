@@ -1,10 +1,9 @@
-use chumsky::{error::Rich, input::Emitter, span::SimpleSpan};
-use logos::Lexer;
+use chumsky::span::SimpleSpan;
 use serde::Deserialize;
 use serde_json::Value;
-use std::{collections::HashMap, fs};
+use std::{collections::HashMap, fmt::Debug, fs};
 
-use crate::{err::rich::RichError, factory::RuleFactory, validates::Content, Statement, Token};
+use crate::{err::rich::RichError, factory::RuleFactory, validates::Content, Program, Statement, Token};
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct Config {
@@ -45,20 +44,21 @@ pub fn load_config(path: &str) -> Config {
 pub fn validate<'a>(
     source: &'a str,
     tokens: &'a mut Box<Vec<(Token<'a>, SimpleSpan)>>,
-    statements: Box<Vec<Statement<'a>>>,
+    program: &'a mut Box<Program<'a>>,
     config: &Config,
-    emitter: &mut Emitter<RichError<Token>>,
+    errors: &'a mut Vec<RichError<Token<'a>>>,
 ) {
     config.rules.iter().for_each(|(name, params)| {
-        let tokens_ref = &mut tokens.clone();
-        let mut contents = Box::new(Content {
-            source,
-            tokens: tokens_ref,
-            statements: statements.clone(),
-        });
+        // let tokens_ref = &mut tokens.clone();
+        // let mut contents = Box::new(Content {
+        //     source,
+        //     tokens: tokens_ref,
+        //     program: program.clone(),
+        // });
 
         if let Some(rule) = RuleFactory::new().get_rule(name) {
-            rule.run(&mut contents, params.clone(), emitter);
+            print!("Rule: {:?}", rule as &dyn Debug);
+            // rule.run(params.clone(), errors, );
         }
     });
 }

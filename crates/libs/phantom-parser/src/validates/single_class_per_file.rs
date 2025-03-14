@@ -1,51 +1,50 @@
+#[derive(Debug)]
 pub struct SingleClassPerFile;
 
-use chumsky::input::Emitter;
+use crate::{config::RuleParams, err::rich::RichError, Statement, Token};
 
-use crate::{config::RuleParams, err::rich::RichError, Token};
-
-use super::{Content, RuleValidator, Statement};
+use super::{Content, RuleValidator};
 
 impl RuleValidator for SingleClassPerFile {
-    fn run(&self, contents: &mut Content, params: RuleParams, emitter: &mut Emitter<RichError<Token>>) {
+    fn run(&self, params: RuleParams, errors: &mut Vec<RichError<Token>>, extra: Option<Content>) {
         let RuleParams(level, _) = &params;
 
         if level != "off" {
-            let statements = contents.statements.as_ref();
+            if let Some(statements) = extra.unwrap().get::<Vec<Statement>>() {
+                statements.iter().for_each(|stmt| match stmt {
+                    Statement::Namespace { body, span, .. } => {
+                        let class_statement = body
+                            .iter()
+                            .filter(|stmt| matches!(stmt, Statement::Class { .. }))
+                            .collect::<Vec<_>>();
 
-            statements.iter().for_each(|stmt| match stmt {
-                Statement::Namespace { body, span, .. } => {
-                    let class_statement = body
-                        .iter()
-                        .filter(|stmt| matches!(stmt, Statement::Class { .. }))
-                        .collect::<Vec<_>>();
-
-                    if class_statement.len() > 1 {
-                        emitter.emit(RichError::custom(
-                            *span,
-                            "error".to_string(),
-                            "More than one class per namespace is not allowed",
-                            false,
-                        ));
+                        if class_statement.len() > 1 {
+                            errors.push(RichError::custom(
+                                *span,
+                                "error".to_string(),
+                                "More than one class per namespace is not allowed",
+                                false,
+                            ));
+                        }
                     }
-                }
-                Statement::Class { span, .. } => {
-                    let class_statement = statements
-                        .iter()
-                        .filter(|stmt| matches!(stmt, Statement::Class { .. }))
-                        .collect::<Vec<_>>();
+                    Statement::Class { span, .. } => {
+                        let class_statement = statements
+                            .iter()
+                            .filter(|stmt| matches!(stmt, Statement::Class { .. }))
+                            .collect::<Vec<_>>();
 
-                    if class_statement.len() > 1 {
-                        emitter.emit(RichError::custom(
-                            *span,
-                            "error".to_string(),
-                            "More than one class per file is not allowed",
-                            false,
-                        ));
+                        if class_statement.len() > 1 {
+                            errors.push(RichError::custom(
+                                *span,
+                                "error".to_string(),
+                                "More than one class per file is not allowed",
+                                false,
+                            ));
+                        }
                     }
-                }
-                _ => {}
-            });
+                    _ => {}
+                });
+            }
         }
     }
 }

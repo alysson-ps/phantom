@@ -4,21 +4,46 @@ pub mod enforce_namespace;
 pub mod line_length;
 pub mod single_class_per_file;
 
-use chumsky::{input::Emitter, span::SimpleSpan};
+use std::any::Any;
+use std::fmt::{write, Debug};
+use std::sync::{Arc, Mutex};
 
-use crate::{config::RuleParams, err::rich::RichError, Statement, Token};
+use crate::config::RuleParams;
+use crate::err::rich::RichError;
+use crate::Token;
 
-pub struct Content<'a> {
-    pub source: &'a str,
-    pub tokens: &'a mut Box<Vec<(Token<'a>, SimpleSpan)>>,
-    pub statements: Box<Vec<Statement<'a>>>,
+#[derive(Debug)]
+pub struct Content {
+    target: Arc<Mutex<dyn Any + Send + Sync>>,
+}
+
+impl Content {
+    pub fn new<T: Any + Send + Sync>(value: T) -> Self {
+        Self {
+            target: Arc::new(Mutex::new(value)),
+        }
+    }
+
+    pub fn get<T: Any>(&self) -> Option<T>
+    where
+        T: Clone, // Precisamos clonar o valor para retornar uma nova instância
+    {
+        let lock = self.target.lock().unwrap(); // Mantém o lock vivo dentro do escopo
+        lock.downcast_ref::<T>().cloned() // Clonamos para evitar referência inválida
+    }
 }
 
 pub trait RuleValidator {
     fn run<'a>(
         &self,
-        contents: &'a mut Content<'a>,
         params: RuleParams,
-        emitter: &mut Emitter<RichError<Token>>,
+        errors: &mut Vec<RichError<Token>>,
+        extra: Option<Content>,
     );
+}
+
+impl Debug for dyn RuleValidator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", std::any::type_name::<dyn RuleValidator>())
+    }
 }

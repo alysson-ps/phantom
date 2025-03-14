@@ -1,18 +1,19 @@
-use chumsky::{input::Emitter, span::SimpleSpan};
+use chumsky::span::SimpleSpan;
 use itertools::Itertools;
 
 use crate::{config::RuleParams, err::rich::RichError, Token};
 
 use super::{Content, RuleValidator};
 
+#[derive(Debug)]
 pub struct LineLength;
 
 impl RuleValidator for LineLength {
     fn run(
         &self,
-        contents: &mut Content,
         params: RuleParams,
-        emitter: &mut Emitter<RichError<'_, Token<'_>>>,
+        errors: &mut Vec<RichError<'_, Token<'_>>>,
+        extra: Option<Content>,
     ) {
         let RuleParams(level, args) = params;
 
@@ -20,30 +21,31 @@ impl RuleValidator for LineLength {
             if let Some(value) = args {
                 let max = value.get("max").unwrap().as_u64().unwrap();
 
-                let line_map: Vec<_> = contents
-                    .source
-                    .lines()
-                    .enumerate()
-                    .map(|(i, line)| (i + 1, line.chars().count() + 1))
-                    .sorted_by_key(|(i, _)| *i)
-                    .collect();
+                if let Some(source) = extra.unwrap().get::<&str>() {
+                    let line_map: Vec<_> = source
+                        .lines()
+                        .enumerate()
+                        .map(|(i, line)| (i + 1, line.chars().count() + 1))
+                        .sorted_by_key(|(i, _)| *i)
+                        .collect();
 
-                let mut span_start = 0;
+                    let mut span_start = 0;
 
-                for (line_number, length) in &line_map {
-                    if *length > (max as usize) {
-                        emitter.emit(RichError::custom(
-                            SimpleSpan::new(span_start, span_start + length),
-                            level.clone(),
-                            format!(
-                                "Line {} has {} characters (max: {})",
-                                line_number, length, max
-                            ),
-                            true,
-                        ));
+                    for (line_number, length) in &line_map {
+                        if *length > (max as usize) {
+                            errors.push(RichError::custom(
+                                SimpleSpan::new(span_start, span_start + length),
+                                level.clone(),
+                                format!(
+                                    "Line {} has {} characters (max: {})",
+                                    line_number, length, max
+                                ),
+                                true,
+                            ));
+                        }
+
+                        span_start += length;
                     }
-
-                    span_start += length;
                 }
             }
         }

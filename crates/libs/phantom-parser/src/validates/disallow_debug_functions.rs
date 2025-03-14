@@ -1,76 +1,61 @@
-use chumsky::input::Emitter;
-
 use crate::{config::RuleParams, err::rich::RichError, Expr, Statement, Token};
 
 use super::{Content, RuleValidator};
 
+#[derive(Debug)]
 pub struct DisallowDebugFunctions;
 
 impl RuleValidator for DisallowDebugFunctions {
     fn run<'a>(
         &self,
-        contents: &'a mut Content<'a>,
         params: RuleParams,
-        emitter: &mut Emitter<RichError<Token>>,
+        errors: &mut Vec<RichError<Token>>,
+        extra: Option<Content>,
     ) {
         let RuleParams(level, args) = &params;
 
         if level != "off" {
-            let statements = contents.statements.as_ref();
+            if let Some(statements) = extra.unwrap().get::<Vec<Statement>>() {
+                let statements_clone = statements.clone();
 
-            statements.iter().for_each(|stmt| match stmt {
-                Statement::Namespace { body, .. } => {
-                    let token_ref = &mut contents.tokens.clone();
-
-                    let mut new_contents = Box::new(Content {
-                        statements: Box::new(body.clone()),
-                        source: contents.source,
-                        tokens: token_ref,
-                    });
-
-                    self.run(&mut new_contents, params.clone(), emitter);
-                }
-                Statement::Class { body, .. } => {
-                    let token_ref = &mut contents.tokens.clone();
-
-                    let mut new_contents = Box::new(Content {
-                        statements: Box::new(body.clone()),
-                        source: contents.source,
-                        tokens: token_ref,
-                    });
-
-                    self.run(&mut new_contents, params.clone(), emitter);
-                }
-                Statement::Method { body, .. } => {
-                    body.iter().for_each(|expr| match &expr {
-                        Expr::Call { func, span, .. } => {
-                            if let Expr::Local(name) = &**func {
-                                if let Some(value) = args {
-                                    if value
-                                        .get("functions")
-                                        .unwrap()
-                                        .as_array()
-                                        .unwrap()
-                                        .contains(&&name.to_string().into())
-                                    {
-                                        emitter.emit(RichError::custom(
-                                            *span,
-                                            "error".to_string(),
-                                            format!(
-                                                "The use of debug function '{}' is not allowed",
-                                                name
-                                            ),
-                                            true,
-                                        ));
+                statements_clone.into_iter().for_each(|stmt| match stmt {
+                    Statement::Namespace { body, .. } => {
+                        self.run(params.clone(), errors, Some(Content::new(body)));
+                    }
+                    Statement::Class { body, .. } => {
+                        self.run(params.clone(), errors, Some(Content::new(body)));
+                    }
+                    Statement::Method { body, .. } => {
+                        body.iter().for_each(|expr| match &expr {
+                            Expr::Call { func, span, .. } => {
+                                if let Expr::Local(name) = &**func {
+                                    if let Some(value) = args {
+                                        if value
+                                            .get("functions")
+                                            .unwrap()
+                                            .as_array()
+                                            .unwrap()
+                                            .contains(&&name.to_string().into())
+                                        {
+                                            errors.push(RichError::custom(
+                                                *span,
+                                                "error".to_string(),
+                                                format!(
+                                                    "The use of debug function '{}' is not allowed",
+                                                    name
+                                                ),
+                                                true,
+                                            ));
+                                        }
                                     }
                                 }
                             }
-                        }
-                        _ => {}
-                    });
-                }
-                _ => {}
-            });
+                            _ => {}
+                        });
+                    }
+                    _ => {}
+                });
+            }
         }
     }
 }

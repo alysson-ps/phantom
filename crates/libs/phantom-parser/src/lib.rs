@@ -823,26 +823,30 @@ pub fn parse<'a>(source: &'a str, config_path: &'a str) -> ParserResult<'a> {
 
     let token_stream = Stream::from_iter(token_iter).map((0..source.len()).into(), |(t, s)| (t, s));
 
-    let (result, errs) = parser()
-        .validate(|program, _e, emitter| {
-            let lexer_ref = &mut Box::new(tokens.clone());
-            let statements_ref = Box::new(program.statements.clone());
-
-            validate(&source, lexer_ref, statements_ref, &config, emitter);
-
-            program
-        })
+    let (result, mut errs) = parser()
+        // .validate(|program, _e, emitter| {
+        //     let lexer_ref = &mut Box::new(tokens.clone());
+        //     let statements_ref = Box::new(program.statements.clone());
+        //     validate(&source, lexer_ref, statements_ref, &config, emitter);
+        //     program
+        // })
         .parse(token_stream)
         .into_output_errors();
 
     // let (result, errs) = parser().parse(token_stream).into_output_errors();
 
+    if let Some(ref program) = result {
+        let tokens_ref = &mut Box::new(tokens.clone());
+        let program_ref = &mut Box::new(program.clone());
+        validate(&source, tokens_ref, program_ref, &config, &mut errs.clone());
+    }
+
     // dbg!(&result);
-    dbg!(&errs);
+    // dbg!(&errs);
 
     ParserResult {
         tokens,
         ast: result,
-        parse_errors: errs,
+        parse_errors: errs
     }
 }
