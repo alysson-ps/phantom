@@ -1,9 +1,9 @@
 use chumsky::span::SimpleSpan;
 use serde::Deserialize;
 use serde_json::Value;
-use std::{collections::HashMap, fmt::Debug, fs};
+use std::{any::Any, collections::HashMap, fmt::Debug, fs};
 
-use crate::{err::rich::RichError, factory::RuleFactory, validates::Content, Program, Statement, Token};
+use crate::{err::rich::RichError, factory::RuleFactory, Program, Token};
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct Config {
@@ -41,10 +41,10 @@ pub fn load_config(path: &str) -> Config {
     config
 }
 
-pub fn validate<'a>(
+pub fn validate<'a,'b: 'static>(
     source: &'a str,
-    tokens: &'a mut Box<Vec<(Token<'a>, SimpleSpan)>>,
-    program: &'a mut Box<Program<'a>>,
+    tokens: &'a Box<Vec<(Token<'a>, SimpleSpan)>>,
+    program: &'a Box<Program<'b>>,
     config: &Config,
     errors: &'a mut Vec<RichError<Token<'a>>>,
 ) {
@@ -57,8 +57,17 @@ pub fn validate<'a>(
         // });
 
         if let Some(rule) = RuleFactory::new().get_rule(name) {
-            print!("Rule: {:?}", rule as &dyn Debug);
-            // rule.run(params.clone(), errors, );
+            let extra = match rule.name() {
+                "single_class_per_file" => {
+                    let program = program.clone().as_ref().clone();
+                    let extra = Some(Box::new(program) as Box<dyn Any + 'b>);
+
+                    extra
+                }
+                _ => None,
+            };
+
+            rule.run(params.clone(), errors, extra.as_ref());
         }
     });
 }

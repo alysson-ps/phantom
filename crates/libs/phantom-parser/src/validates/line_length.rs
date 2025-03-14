@@ -1,19 +1,25 @@
+use std::any::Any;
+
 use chumsky::span::SimpleSpan;
 use itertools::Itertools;
 
 use crate::{config::RuleParams, err::rich::RichError, Token};
 
-use super::{Content, RuleValidator};
+use super::RuleValidator;
 
 #[derive(Debug)]
 pub struct LineLength;
 
 impl RuleValidator for LineLength {
+    fn name(&self) -> &str {
+        "line_length"
+    }
+
     fn run(
         &self,
         params: RuleParams,
         errors: &mut Vec<RichError<'_, Token<'_>>>,
-        extra: Option<Content>,
+        extra: Option<&Box<dyn Any>>,
     ) {
         let RuleParams(level, args) = params;
 
@@ -21,7 +27,7 @@ impl RuleValidator for LineLength {
             if let Some(value) = args {
                 let max = value.get("max").unwrap().as_u64().unwrap();
 
-                if let Some(source) = extra.unwrap().get::<&str>() {
+                if let Some(source) = extra.unwrap().downcast_ref::<&str>() {
                     let line_map: Vec<_> = source
                         .lines()
                         .enumerate()

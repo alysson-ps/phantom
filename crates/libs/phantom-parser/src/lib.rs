@@ -3,6 +3,8 @@ pub mod err;
 mod factory;
 mod validates;
 
+use std::sync::Arc;
+
 use chumsky::{
     extra::Err,
     input::{Input, Stream, ValueInput},
@@ -836,9 +838,11 @@ pub fn parse<'a>(source: &'a str, config_path: &'a str) -> ParserResult<'a> {
     // let (result, errs) = parser().parse(token_stream).into_output_errors();
 
     if let Some(ref program) = result {
-        let tokens_ref = &mut Box::new(tokens.clone());
-        let program_ref = &mut Box::new(program.clone());
-        validate(&source, tokens_ref, program_ref, &config, &mut errs.clone());
+        let tokens_ref = Box::new(tokens.clone());
+        let program_ref = Box::new(program.clone());
+        let err_ref = &mut Box::new(errs.clone());
+
+        validate(&source, &tokens_ref, &program_ref, &config, err_ref);
     }
 
     // dbg!(&result);
@@ -847,6 +851,6 @@ pub fn parse<'a>(source: &'a str, config_path: &'a str) -> ParserResult<'a> {
     ParserResult {
         tokens,
         ast: result,
-        parse_errors: errs
+        parse_errors: errs,
     }
 }

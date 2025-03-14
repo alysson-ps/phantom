@@ -12,33 +12,13 @@ use crate::config::RuleParams;
 use crate::err::rich::RichError;
 use crate::Token;
 
-#[derive(Debug)]
-pub struct Content {
-    target: Arc<Mutex<dyn Any + Send + Sync>>,
-}
-
-impl Content {
-    pub fn new<T: Any + Send + Sync>(value: T) -> Self {
-        Self {
-            target: Arc::new(Mutex::new(value)),
-        }
-    }
-
-    pub fn get<T: Any>(&self) -> Option<T>
-    where
-        T: Clone, // Precisamos clonar o valor para retornar uma nova instância
-    {
-        let lock = self.target.lock().unwrap(); // Mantém o lock vivo dentro do escopo
-        lock.downcast_ref::<T>().cloned() // Clonamos para evitar referência inválida
-    }
-}
-
 pub trait RuleValidator {
-    fn run<'a>(
+    fn name(&self) -> &str;
+    fn run(
         &self,
         params: RuleParams,
         errors: &mut Vec<RichError<Token>>,
-        extra: Option<Content>,
+        extra: Option<&Box<dyn Any + 'static>>,
     );
 }
 
