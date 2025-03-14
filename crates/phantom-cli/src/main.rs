@@ -1,5 +1,6 @@
 use clap::{Args, Parser, Subcommand};
 use dialoguer::{theme::ColorfulTheme, Select};
+use phantom_config::load;
 use phantom_parser::ParserResult;
 use strum::IntoEnumIterator;
 use strum_macros::{AsRefStr, EnumIter};
@@ -18,6 +19,9 @@ enum Commands {
 
     /// Run the parser
     Parser(ParserArgs),
+
+    /// Manage config file
+    Config(ConfigArgs),
 }
 
 #[derive(Args, Debug, Clone)]
@@ -42,6 +46,9 @@ struct ParserArgs {
     #[arg(short, long, help = "Path to the config file")]
     config: Option<String>,
 }
+
+#[derive(Args, Debug, Clone)]
+struct ConfigArgs {}
 
 #[derive(Debug, Clone, EnumIter, AsRefStr)]
 enum Framework {
@@ -85,8 +92,6 @@ fn parser(args: &ParserArgs) {
 
     // dbg!(&tokens);
     // dbg!(&parse_errors);
-
-    
 }
 
 fn main() {
@@ -99,6 +104,14 @@ fn main() {
         Commands::Parser(args) => {
             parser(args);
         }
+        Commands::Config(args) => match load("examples/.phantomrc") {
+            Ok(config) => {
+                dbg!(&config);
+            }
+            Err(err) => {
+                dbg!(err);
+            }
+        },
     };
 
     // dbg!(result);

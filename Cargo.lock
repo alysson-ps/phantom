@@ -810,11 +810,28 @@ dependencies = [
  "clap",
  "crossterm",
  "dialoguer",
+ "phantom-config",
  "phantom-parser",
  "serde",
  "strum",
  "strum_macros",
 ]
+
+[[package]]
+name = "phantom-config"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "phantom-formatter"
+version = "0.1.0"
+
+[[package]]
+name = "phantom-linter"
+version = "0.1.0"
 
 [[package]]
 name = "phantom-logger"

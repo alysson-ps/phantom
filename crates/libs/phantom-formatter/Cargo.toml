@@ -1,0 +1,9 @@
+[package]
+name = "phantom-formatter"
+version.workspace = true
+edition.workspace = true
+categories.workspace = true
+keywords.workspace = true
+rust-version.workspace = true
+
+[dependencies]
