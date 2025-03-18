@@ -1,5 +1,3 @@
-use std::any::Any;
-
 use chumsky::span::SimpleSpan;
 use itertools::Itertools;
 
@@ -15,20 +13,23 @@ impl RuleValidator for LineLength {
         "line_length"
     }
 
-    fn run(
+    fn run<'a, T>(
         &self,
         params: RuleParams,
         errors: &mut Vec<RichError<'_, Token<'_>>>,
-        extra: Option<&Box<dyn Any>>,
-    ) {
+        extra: Option<T>,
+    ) where
+        T: AsRef<str>,
+    {
         let RuleParams(level, args) = params;
 
         if level != "off" {
             if let Some(value) = args {
                 let max = value.get("max").unwrap().as_u64().unwrap();
 
-                if let Some(source) = extra.unwrap().downcast_ref::<&str>() {
+                if let Some(source) = extra {
                     let line_map: Vec<_> = source
+                        .as_ref()
                         .lines()
                         .enumerate()
                         .map(|(i, line)| (i + 1, line.chars().count() + 1))

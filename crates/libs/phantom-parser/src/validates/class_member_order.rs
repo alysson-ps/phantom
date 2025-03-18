@@ -1,7 +1,7 @@
 #[derive(Debug)]
 pub struct ClassMemberOrder;
 
-use std::{any::Any, collections::HashMap, ops::Index};
+use std::{collections::HashMap, ops::Index};
 
 use crate::{config::RuleParams, err::rich::RichError, Statement, Token};
 
@@ -12,22 +12,19 @@ impl RuleValidator for ClassMemberOrder {
         "class_member_order"
     }
 
-    fn run<'a>(
-        &self,
-        params: RuleParams,
-        errors: &mut Vec<RichError<Token>>,
-        extra: Option<&Box<dyn Any>>,
-    ) {
+    fn run<'a, T>(&self, params: RuleParams, errors: &mut Vec<RichError<Token>>, extra: Option<T>)
+    where
+        T: AsRef<[Statement<'a>]>,
+    {
         let RuleParams(level, args) = &params;
 
         if level != "off" {
-            if let Some(statements) = extra.unwrap().downcast_ref::<Vec<Statement>>() {
-                let statements_clone = statements.clone();
+            if let Some(statements) = extra {
+                let statements_cloned = statements.as_ref().clone();
 
-                statements_clone.into_iter().for_each(|stmt| match stmt {
+                statements_cloned.as_ref().iter().for_each(|stmt| match stmt {
                     Statement::Namespace { body, .. } => {
-                        let extra = Some(Box::new(body) as Box<dyn Any>);
-                        self.run(params.clone(), errors, extra.as_ref())
+                        self.run(params.clone(), errors, Some(body))
                     }
                     Statement::Class { body, .. } => {
                         let methods = body

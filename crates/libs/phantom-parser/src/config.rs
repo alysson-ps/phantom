@@ -41,10 +41,10 @@ pub fn load_config(path: &str) -> Config {
     config
 }
 
-pub fn validate<'a,'b: 'static>(
+pub fn validate<'a>(
     source: &'a str,
     tokens: &'a Box<Vec<(Token<'a>, SimpleSpan)>>,
-    program: &'a Box<Program<'b>>,
+    program: &'a Box<Program<'a>>,
     config: &Config,
     errors: &'a mut Vec<RichError<Token<'a>>>,
 ) {
@@ -56,18 +56,17 @@ pub fn validate<'a,'b: 'static>(
         //     program: program.clone(),
         // });
 
-        if let Some(rule) = RuleFactory::new().get_rule(name) {
-            let extra = match rule.name() {
-                "single_class_per_file" => {
-                    let program = program.clone().as_ref().clone();
-                    let extra = Some(Box::new(program) as Box<dyn Any + 'b>);
+        let rule = RuleFactory::get("single-class-per-file");
 
-                    extra
-                }
-                _ => None,
-            };
+        dbg!(rule.run(params.clone(), errors))
 
-            rule.run(params.clone(), errors, extra.as_ref());
-        }
+        // if let Some(rule) = RuleFactory::new().get_rule(name) {
+        //     let extra = match rule.name() {
+        //         "single_class_per_file" => Some(program),
+        //         _ => None,
+        //     };
+
+        //     rule.run(params.clone(), errors, extra);
+        // }
     });
 }

@@ -1,28 +1,23 @@
+use crate::{config::RuleParams, err::rich::RichError, Statement, Token};
+
 #[derive(Debug)]
 pub struct SingleClassPerFile;
 
-use std::any::Any;
-
-use crate::{config::RuleParams, err::rich::RichError, Statement, Token};
-
-use super::RuleValidator;
-
-impl RuleValidator for SingleClassPerFile {
-    fn name(&self) -> &str {
-        "single_class_per_file"
-    }
-
-    fn run(
+impl SingleClassPerFile {
+    pub fn run<'a, T>(
         &self,
         params: RuleParams,
         errors: &mut Vec<RichError<Token>>,
-        extra: Option<&Box<dyn Any>>,
-    ) {
+        extra: Option<T>,
+    ) where
+        T: AsRef<[Statement<'a>]>,
+    {
         let RuleParams(level, _) = &params;
+        dbg!(level);
 
         if level != "off" {
-            if let Some(statements) = extra.unwrap().downcast_ref::<Vec<Statement>>() {
-                statements.iter().for_each(|stmt| match stmt {
+            if let Some(statements) = extra {
+                statements.as_ref().iter().for_each(|stmt| match stmt {
                     Statement::Namespace { body, span, .. } => {
                         let class_statement = body
                             .iter()
@@ -40,6 +35,7 @@ impl RuleValidator for SingleClassPerFile {
                     }
                     Statement::Class { span, .. } => {
                         let class_statement = statements
+                            .as_ref()
                             .iter()
                             .filter(|stmt| matches!(stmt, Statement::Class { .. }))
                             .collect::<Vec<_>>();

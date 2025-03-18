@@ -1,5 +1,3 @@
-use std::any::Any;
-
 use crate::{config::RuleParams, err::rich::RichError, Expr, Statement, Token};
 
 use super::RuleValidator;
@@ -12,26 +10,20 @@ impl RuleValidator for DisallowDebugFunctions {
         "disallow_debug_functions"
     }
 
-    fn run<'a>(
-        &self,
-        params: RuleParams,
-        errors: &mut Vec<RichError<Token>>,
-        extra: Option<&Box<dyn Any>>,
-    ) {
+    fn run<'a, T>(&self, params: RuleParams, errors: &mut Vec<RichError<Token>>, extra: Option<T>)
+    {
         let RuleParams(level, args) = &params;
 
         if level != "off" {
-            if let Some(statements) = extra.unwrap().downcast_ref::<Vec<Statement>>() {
-                let statements_clone = statements.clone();
+            if let Some(statements) = extra {
+                let statements_cloned = statements;
 
-                statements_clone.into_iter().for_each(|stmt| match stmt {
+                statements_cloned.iter().for_each(|stmt| match stmt {
                     Statement::Namespace { body, .. } => {
-                        let extra = Some(Box::new(body) as Box<dyn Any>);
-                        self.run(params.clone(), errors, extra.as_ref());
+                        self.run(params.clone(), errors, Some(body));
                     }
                     Statement::Class { body, .. } => {
-                        let extra = Some(Box::new(body) as Box<dyn Any>);
-                        self.run(params.clone(), errors, extra.as_ref());
+                        self.run(params.clone(), errors, Some(body));
                     }
                     Statement::Method { body, .. } => {
                         body.iter().for_each(|expr| match &expr {

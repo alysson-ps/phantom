@@ -1,5 +1,3 @@
-use std::any::Any;
-
 use crate::{config::RuleParams, err::rich::RichError, Statement, Token};
 use chumsky::span::SimpleSpan;
 
@@ -13,17 +11,16 @@ impl RuleValidator for EnforceNamespace {
         "enforce_namespace"
     }
 
-    fn run(
-        &self,
-        params: RuleParams,
-        errors: &mut Vec<RichError<Token>>,
-        extra: Option<&Box<dyn Any>>,
-    ) {
+    fn run<'a, T>(&self, params: RuleParams, errors: &mut Vec<RichError<Token>>, extra: Option<T>)
+    where
+        T: AsRef<[Statement<'a>]>,
+    {
         let RuleParams(level, args) = &params;
 
         if level != "off" {
-            if let Some(statements) = extra.unwrap().downcast_ref::<Vec<Statement>>() {
+            if let Some(statements) = extra {
                 let namespace = statements
+                    .as_ref()
                     .iter()
                     .filter(|stmt| matches!(stmt, Statement::Namespace { .. }))
                     .collect::<Vec<_>>();
