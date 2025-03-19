@@ -1,14 +1,28 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+use factory::{Extra, RuleFactory};
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+use phantom_config::Config;
+use phantom_core::{rich::RichError, Program, Span, Token};
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
+mod factory;
+mod validates;
+
+pub fn validate<'a>(
+    source: &'a str,
+    tokens: &'a Box<Vec<(Token<'a>, Span)>>,
+    program: &'a Box<Program<'a>>,
+    config: &Config,
+    errors: &'a mut Vec<RichError<Token<'a>>>,
+) {
+    config.rules.iter().for_each(|(name, params)| {
+        let rule = RuleFactory::get(&name);
+
+        let extra = Box::new(Extra {
+            source,
+            program: program.as_ref().clone(),
+            tokens: tokens.iter().map(|(token, _)| token.clone()).collect(),
+        });
+
+        rule.run(params.clone(), errors, extra.clone());
+        // rule.run(params.clone(), errors);
+    });
 }

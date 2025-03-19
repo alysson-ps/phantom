@@ -1,17 +1,11 @@
-use crate::{config::RuleParams, err::rich::RichError, Statement, Token};
-use chumsky::span::SimpleSpan;
-
-use super::RuleValidator;
+use phantom_config::RuleParams;
+use phantom_core::{rich::RichError, Span, Statement, Token};
 
 #[derive(Debug)]
 pub struct EnforceNamespace;
 
-impl RuleValidator for EnforceNamespace {
-    fn name(&self) -> &str {
-        "enforce_namespace"
-    }
-
-    fn run<'a, T>(&self, params: RuleParams, errors: &mut Vec<RichError<Token>>, extra: Option<T>)
+impl EnforceNamespace {
+    pub fn run<'a, T>(&self, params: RuleParams, errors: &mut Vec<RichError<Token>>, extra: Option<T>)
     where
         T: AsRef<[Statement<'a>]>,
     {
@@ -27,7 +21,7 @@ impl RuleValidator for EnforceNamespace {
 
                 if namespace.clone().is_empty() {
                     errors.push(RichError::custom(
-                        SimpleSpan::new(0, 0),
+                        Span::new(0, 0),
                         "error".to_string(),
                         "No namespaces found",
                         false,

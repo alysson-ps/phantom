@@ -7,3 +7,8 @@ keywords.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+phantom-config = { path = "../phantom-config", package = "phantom-config" }
+phantom-core = { path = "../phantom-core", package = "phantom-core" }
+
+
+itertools = "0.10"

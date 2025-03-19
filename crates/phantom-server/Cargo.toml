@@ -8,6 +8,7 @@ rust-version.workspace = true
 
 [dependencies]
 phantom-parser = { path = "../libs/phantom-parser", package = "phantom-parser" }
+phantom-core = { path = "../libs/phantom-core", package = "phantom-core" }
 phantom-logger = { path = "../libs/phantom-logger", package = "phantom-logger" }
 
 # chumsky = "0.9.0"

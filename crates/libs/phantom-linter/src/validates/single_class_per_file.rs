@@ -1,4 +1,5 @@
-use crate::{config::RuleParams, err::rich::RichError, Statement, Token};
+use phantom_config::RuleParams;
+use phantom_core::{rich::RichError, Statement, Token};
 
 #[derive(Debug)]
 pub struct SingleClassPerFile;

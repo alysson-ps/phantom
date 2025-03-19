@@ -1,19 +1,12 @@
-use chumsky::span::SimpleSpan;
 use itertools::Itertools;
-
-use crate::{config::RuleParams, err::rich::RichError, Token};
-
-use super::RuleValidator;
+use phantom_config::RuleParams;
+use phantom_core::{rich::RichError, Span, Token};
 
 #[derive(Debug)]
 pub struct LineLength;
 
-impl RuleValidator for LineLength {
-    fn name(&self) -> &str {
-        "line_length"
-    }
-
-    fn run<'a, T>(
+impl LineLength {
+    pub fn run<'a, T>(
         &self,
         params: RuleParams,
         errors: &mut Vec<RichError<'_, Token<'_>>>,
@@ -22,6 +15,9 @@ impl RuleValidator for LineLength {
         T: AsRef<str>,
     {
         let RuleParams(level, args) = params;
+
+        dbg!(&level);
+        dbg!(&args);
 
         if level != "off" {
             if let Some(value) = args {
@@ -41,7 +37,7 @@ impl RuleValidator for LineLength {
                     for (line_number, length) in &line_map {
                         if *length > (max as usize) {
                             errors.push(RichError::custom(
-                                SimpleSpan::new(span_start, span_start + length),
+                                Span::new(span_start, span_start + length),
                                 level.clone(),
                                 format!(
                                     "Line {} has {} characters (max: {})",

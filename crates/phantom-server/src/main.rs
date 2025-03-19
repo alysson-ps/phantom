@@ -1,6 +1,7 @@
 use dashmap::DashMap;
+use phantom_core::rich::RichReason;
 use phantom_logger::{debug, info};
-use phantom_parser::{err::rich::RichReason, ParserResult};
+use phantom_parser::ParserResult;
 use ropey::Rope;
 use serde_json::Value;
 use tower_lsp::jsonrpc::Result;

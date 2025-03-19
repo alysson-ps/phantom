@@ -10,7 +10,7 @@ use chumsky::{
 use std::{borrow::Cow, fmt};
 
 /// An expected pattern for a [`Rich`] error.
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+// #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum RichPattern<'a, T> {
     /// A specific token.
@@ -156,7 +156,7 @@ where
 }
 
 /// The reason for a [`Rich`] error.
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+// #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum RichReason<'a, T> {
     /// An unexpected input was found
