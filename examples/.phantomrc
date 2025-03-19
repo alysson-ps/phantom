@@ -22,6 +22,12 @@
                     "print_r"
                 ]
             }
+        ],
+        "line-length": [
+            "error",
+            {
+                "max": 80
+            }
         ]
     }
 }
