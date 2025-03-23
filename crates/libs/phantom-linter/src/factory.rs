@@ -1,5 +1,5 @@
 use phantom_config::RuleParams;
-use phantom_core::{rich::RichError, Program, Statement, Token};
+use phantom_core::{rich::RichError, token::Token, Program, Statement};
 
 use crate::validates::{
     class_member_order::ClassMemberOrder, disallow_debug_functions::DisallowDebugFunctions,

@@ -1,18 +1,20 @@
 use factory::{Extra, RuleFactory};
 
 use phantom_config::Config;
-use phantom_core::{rich::RichError, Program, Span, Token};
+use phantom_core::{rich::RichError, token::Token, Program, Span};
 
 mod factory;
 mod validates;
 
 pub fn validate<'a>(
     source: &'a str,
-    tokens: &'a Box<Vec<(Token<'a>, Span)>>,
-    program: &'a Box<Program<'a>>,
+    tokens: Box<Vec<(Token<'a>, Span)>>,
+    program: Box<Program<'a>>,
     config: &Config,
-    errors: &'a mut Vec<RichError<Token<'a>>>,
-) {
+    errors: Vec<RichError<'a, Token<'a>>>,
+) -> Vec<RichError<'a, Token<'a>>> {
+    let mut errs = errors.clone();
+
     config.rules.iter().for_each(|(name, params)| {
         let rule = RuleFactory::get(&name);
 
@@ -22,7 +24,8 @@ pub fn validate<'a>(
             tokens: tokens.iter().map(|(token, _)| token.clone()).collect(),
         });
 
-        rule.run(params.clone(), errors, extra.clone());
-        // rule.run(params.clone(), errors);
+        rule.run(params.clone(), &mut errs, extra.clone());
     });
+
+    errs
 }

@@ -1,155 +1,10 @@
 use chumsky::span::SimpleSpan;
-use logos::Logos;
-
 pub mod rich;
+pub mod token;
 
 pub type Span = SimpleSpan;
 pub type Spanned<T> = (T, Span);
-
-#[derive(Debug, Logos, PartialEq, Clone)]
-pub enum Token<'a> {
-    #[regex(r"[ \t]+", callback = |lex| {
-        let slice = lex.slice();
-        if slice.len() == 1 {
-            Token::Whitespace
-        } else {
-            Token::Tab(slice.len())
-        }
-    })]
-    Whitespace,
-    Tab(usize),
-
-    #[regex(r"\n")]
-    Newline,
-
-    #[regex(r"//[^\n]*", logos::skip)]
-    SingleLineComment,
-
-    #[regex(r"/\*[^*]*\*+(?:[^/*][^*]*\*+)*/", logos::skip)]
-    MiltLineComment,
-
-    #[token("\\")]
-    Backslash,
-
-    #[token("<?php")]
-    OpenTag,
-
-    #[token("?>")]
-    CloseTag,
-
-    #[token("namespace")]
-    Namespace,
-
-    #[token("final")]
-    Final,
-
-    #[token("class")]
-    Class,
-
-    #[token("abstract")]
-    Abstract,
-
-    #[token("static")]
-    Static,
-
-    #[token("function")]
-    Function,
-
-    #[token("if")]
-    If,
-
-    #[token("else")]
-    Else,
-
-    #[token("public")]
-    #[token("private")]
-    #[token("protected")]
-    Visibility(&'a str),
-
-    #[regex(r"(\$[a-zA-Z_][a-zA-Z0-9_]*)", |lex| &lex.slice()[1..])]
-    Variable(&'a str),
-
-    #[token("null")]
-    Null,
-
-    #[regex(r"[0-9]+")]
-    Number(&'a str),
-
-    #[regex(r#""([^"\\]|\\.)*""#)]
-    String(&'a str),
-
-    #[token("true")]
-    #[token("false")]
-    Bool(&'a str),
-
-    #[regex(r"[a-zA-Z_][a-zA-Z0-9_]*")]
-    Identifier(&'a str),
-
-    #[token(";")]
-    Semicolon,
-
-    #[token("{")]
-    LBrace,
-
-    #[token("}")]
-    RBrace,
-
-    #[token("(")]
-    LParen,
-
-    #[token(")")]
-    RParen,
-
-    #[token("[")]
-    LBracket,
-
-    #[token("]")]
-    RBracket,
-
-    #[token(",")]
-    Comma,
-
-    #[token("return")]
-    Return,
-
-    #[token("=")]
-    Assign,
-
-    #[token("==")]
-    Eq,
-
-    #[token("!=")]
-    NotEq,
-
-    #[token("&&")]
-    And,
-
-    #[token("||")]
-    Or,
-
-    #[token("+")]
-    Plus,
-
-    #[token("-")]
-    Minus,
-
-    #[token("*")]
-    Asterisk,
-
-    #[token("/")]
-    Slash,
-
-    #[token(".")]
-    Concat,
-
-    #[token("->")]
-    Arrow,
-
-    #[token("=>")]
-    DoubleArrow,
-
-    Error,
-}
+pub type Lexer<'a, T> = logos::Lexer<'a, T>;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Statement<'a> {
@@ -271,4 +126,14 @@ pub enum BinaryOp {
     And,
     Or,
     Concat,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Rule {
+    LineLength,
+    DisallowDebugFunctions,
+    ClassMemberOrder,
+    EnforceNamespace,
+    SingleClassPerFile,
+    TooManyConsecutiveNewlines,
 }

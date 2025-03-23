@@ -1,5 +1,7 @@
+use std::fmt::Debug;
+
 use phantom_config::RuleParams;
-use phantom_core::{rich::RichError, Expr, Statement, Token};
+use phantom_core::{rich::RichError, token::Token, Expr, Rule, Statement};
 
 #[derive(Debug)]
 pub struct DisallowDebugFunctions;
@@ -15,46 +17,49 @@ impl DisallowDebugFunctions {
     {
         let RuleParams(level, args) = &params;
 
-        dbg!(level);
-        dbg!(args);
-
         if level != "off" {
             if let Some(statements) = extra {
-                statements
-                    .as_ref()
-                    .iter()
-                    .filter(|stmt| matches!(stmt, Statement::Method { .. }))
-                    .for_each(|stmt| match stmt {
-                        Statement::Method { body, .. } => {
-                            body.iter().for_each(|expr| match &expr {
-                                Expr::Call { func, span, .. } => {
-                                    if let Expr::Local(name) = &**func {
-                                        if let Some(value) = args {
-                                            if value
-                                                .get("functions")
-                                                .unwrap()
-                                                .as_array()
-                                                .unwrap()
-                                                .contains(&&name.to_string().into())
-                                            {
-                                                errors.push(RichError::custom(
-                                                    *span,
-                                                    "error".to_string(),
-                                                    format!(
+                statements.as_ref().iter().for_each(|stmt| match stmt {
+                    Statement::Namespace { body, .. } => {
+                        let extra = Some(body);
+
+                        self.run(params.clone(), errors, extra);
+                    }
+                    Statement::Class { body, .. } => {
+                        let extra = Some(body);
+
+                        self.run(params.clone(), errors, extra);
+                    }
+                    Statement::Method { body, .. } => {
+                        body.iter().for_each(|expr| match &expr {
+                            Expr::Call { func, span, .. } => {
+                                if let Expr::Local(name) = &**func {
+                                    if let Some(value) = args {
+                                        if value
+                                            .get("functions")
+                                            .unwrap()
+                                            .as_array()
+                                            .unwrap()
+                                            .contains(&&name.to_string().into())
+                                        {
+                                            errors.push(RichError::custom(
+                                                *span,
+                                                "error".to_string(),
+                                                format!(
                                                     "The use of debug function '{}' is not allowed",
                                                     name
                                                 ),
-                                                    true,
-                                                ));
-                                            }
+                                                Some(Rule::DisallowDebugFunctions),
+                                            ));
                                         }
                                     }
                                 }
-                                _ => {}
-                            });
-                        }
-                        _ => {}
-                    });
+                            }
+                            _ => {}
+                        });
+                    }
+                    _ => {}
+                });
             }
         }
     }

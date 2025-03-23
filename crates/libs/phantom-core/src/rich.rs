@@ -9,6 +9,8 @@ use chumsky::{
 };
 use std::{borrow::Cow, fmt};
 
+use crate::Rule;
+
 /// An expected pattern for a [`Rich`] error.
 // #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -322,7 +324,7 @@ pub struct RichError<'a, T, S = SimpleSpan<usize>> {
     reason: Box<RichReason<'a, T>>,
     context: Vec<(RichPattern<'a, T>, S)>,
     level: String,
-    fixable: bool,
+    fixer: Option<Rule>,
 }
 
 impl<T, S> RichError<'_, T, S> {
@@ -346,14 +348,18 @@ impl<T, S> RichError<'_, T, S> {
 impl<'a, T, S> RichError<'a, T, S> {
     /// Create an error with a custom message and span
     #[inline]
-    pub fn custom<M: ToString>(span: S, level: String, msg: M, fixable: bool) -> Self {
+    pub fn custom<M: ToString>(span: S, level: String, msg: M, fixer: Option<Rule>) -> Self {
         RichError {
             span,
             reason: Box::new(RichReason::Custom(msg.to_string())),
             context: Vec::new(),
             level,
-            fixable,
+            fixer,
         }
+    }
+
+    pub fn fixer(&self) -> Option<Rule> {
+        self.fixer.clone()
     }
 
     /// Get the span associated with this error.
@@ -365,7 +371,7 @@ impl<'a, T, S> RichError<'a, T, S> {
     pub fn reason(&self) -> &RichReason<'a, T> {
         &self.reason
     }
-    
+
     ///Get the level
     pub fn level(&self) -> &String {
         &self.level
@@ -399,7 +405,7 @@ impl<'a, T, S> RichError<'a, T, S> {
             reason: Box::new(self.reason.into_owned()),
             context: self.context.into_iter().map(|(p, s)| (p.into_owned(), s)).collect(),
             level: self.level.to_string(),
-            fixable: self.fixable,
+            fixer: self.fixer,
         }
     }
 
@@ -424,7 +430,7 @@ impl<'a, T, S> RichError<'a, T, S> {
             reason: Box::new(self.reason.map_token(&mut f)),
             context: self.context.into_iter().map(|(p, s)| (p.map_token(&mut f), s)).collect(),
             level: self.level,
-            fixable: self.fixable,
+            fixer: self.fixer,
         }
     }
 }
@@ -441,7 +447,7 @@ where
             reason: Box::new(new_reason),
             context: self.context, // TOOD: Merge contexts
             level: self.level,
-            fixable: self.fixable,
+            fixer: self.fixer,
         }
     }
 }
@@ -465,7 +471,7 @@ where
             }),
             context: Vec::new(),
             level: "".to_string(),
-            fixable: false,
+            fixer: None,
         }
     }
 

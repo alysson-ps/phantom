@@ -1,6 +1,7 @@
 use clap::{Args, Parser, Subcommand};
 use dialoguer::{theme::ColorfulTheme, Select};
 use phantom_config::load;
+use phantom_core::{rich::RichError, token::Token};
 use phantom_parser::ParserResult;
 use strum::IntoEnumIterator;
 use strum_macros::{AsRefStr, EnumIter};
@@ -40,8 +41,9 @@ struct ParserArgs {
     #[arg(long, help = "Apply fixes to the code without save the changes")]
     fix_dry_run: bool,
 
-    #[arg(long, help = "Output debugging information", action = clap::ArgAction::Count , default_value = "0")]
-    debug: u8,
+    // #[arg(long, help = "Output debugging information", action = clap::ArgAction::Count , default_value = "0")]
+    #[arg(long, help = "Output debugging information")]
+    debug: bool,
 
     #[arg(short, long, help = "Path to the config file")]
     config: Option<String>,
@@ -79,7 +81,7 @@ fn initialize(args: &InitArgs) {
 }
 
 fn parser(args: &ParserArgs) {
-    // dbg!(args);
+    dbg!(args);
 
     let content = std::fs::read_to_string(&args.path).expect("Failed to read file");
 
@@ -90,8 +92,24 @@ fn parser(args: &ParserArgs) {
         tokens,
     } = phantom_parser::parse(&content, &config_path);
 
-    // dbg!(&tokens);
-    // dbg!(&parse_errors);
+    if args.fix {
+        let errs = parse_errors
+            .clone()
+            .iter()
+            .filter(|err| err.fixer().is_some())
+            .map(|item| item.clone())
+            .collect::<Vec<RichError<Token>>>();
+
+        let formatter = phantom_formatter::Event {
+            path: &args.path,
+            tokens,
+            errs,
+        };
+
+        phantom_formatter::run(formatter);
+    }
+
+    dbg!(parse_errors);
 }
 
 fn main() {

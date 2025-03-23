@@ -1,12 +1,16 @@
 use phantom_config::RuleParams;
-use phantom_core::{rich::RichError, Span, Statement, Token};
+use phantom_core::{rich::RichError, token::Token, Rule, Span, Statement};
 
 #[derive(Debug)]
 pub struct EnforceNamespace;
 
 impl EnforceNamespace {
-    pub fn run<'a, T>(&self, params: RuleParams, errors: &mut Vec<RichError<Token>>, extra: Option<T>)
-    where
+    pub fn run<'a, T>(
+        &self,
+        params: RuleParams,
+        errors: &mut Vec<RichError<Token>>,
+        extra: Option<T>,
+    ) where
         T: AsRef<[Statement<'a>]>,
     {
         let RuleParams(level, args) = &params;
@@ -24,7 +28,7 @@ impl EnforceNamespace {
                         Span::new(0, 0),
                         "error".to_string(),
                         "No namespaces found",
-                        false,
+                        Some(Rule::EnforceNamespace),
                     ));
                 }
 
@@ -43,7 +47,7 @@ impl EnforceNamespace {
                                 *span,
                                 "error".to_string(),
                                 format!("Namespaces with brackets are not allowed"),
-                                false,
+                                Some(Rule::EnforceNamespace),
                             ));
                         }
                     }

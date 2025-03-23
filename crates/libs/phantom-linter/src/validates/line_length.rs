@@ -1,6 +1,6 @@
 use itertools::Itertools;
 use phantom_config::RuleParams;
-use phantom_core::{rich::RichError, Span, Token};
+use phantom_core::{rich::RichError, token::Token, Rule, Span};
 
 #[derive(Debug)]
 pub struct LineLength;
@@ -15,9 +15,6 @@ impl LineLength {
         T: AsRef<str>,
     {
         let RuleParams(level, args) = params;
-
-        dbg!(&level);
-        dbg!(&args);
 
         if level != "off" {
             if let Some(value) = args {
@@ -43,7 +40,7 @@ impl LineLength {
                                     "Line {} has {} characters (max: {})",
                                     line_number, length, max
                                 ),
-                                true,
+                                Some(Rule::LineLength),
                             ));
                         }
 

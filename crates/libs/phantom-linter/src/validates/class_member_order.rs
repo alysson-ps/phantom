@@ -4,7 +4,7 @@ pub struct ClassMemberOrder;
 use std::{collections::HashMap, ops::Index};
 
 use phantom_config::RuleParams;
-use phantom_core::{rich::RichError, Statement, Token};
+use phantom_core::{rich::RichError, token::Token, Rule, Statement};
 
 impl ClassMemberOrder {
     pub fn run<'a, T>(
@@ -22,8 +22,13 @@ impl ClassMemberOrder {
                 statements
                     .as_ref()
                     .iter()
-                    .filter(|stmt| matches!(stmt, Statement::Class { .. }))
+                    // .filter(|stmt| matches!(stmt, Statement::Class { .. }))
                     .for_each(|stmt| match stmt {
+                        Statement::Namespace { body, .. } => {
+                            let extra = Some(body);
+
+                            self.run(params.clone(), errors, extra);
+                        }
                         Statement::Class { body, .. } => {
                             let methods = body
                                 .iter()
@@ -58,7 +63,7 @@ impl ClassMemberOrder {
                                                     name,
                                                     order.to_vec().index(last_index).to_string()
                                                 ),
-                                                true,
+                                                Some(Rule::ClassMemberOrder),
                                             ));
                                         }
                                         last_index = current_index;

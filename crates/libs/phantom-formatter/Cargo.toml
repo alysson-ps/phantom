@@ -7,3 +7,4 @@ keywords.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+phantom-core = { path = "../phantom-core", package = "phantom-core" }

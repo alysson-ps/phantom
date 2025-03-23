@@ -1,5 +1,5 @@
 use phantom_config::RuleParams;
-use phantom_core::{rich::RichError, Statement, Token};
+use phantom_core::{rich::RichError, token::Token, Rule, Statement};
 
 #[derive(Debug)]
 pub struct SingleClassPerFile;
@@ -14,7 +14,6 @@ impl SingleClassPerFile {
         T: AsRef<[Statement<'a>]>,
     {
         let RuleParams(level, _) = &params;
-        dbg!(level);
 
         if level != "off" {
             if let Some(statements) = extra {
@@ -30,7 +29,7 @@ impl SingleClassPerFile {
                                 *span,
                                 "error".to_string(),
                                 "More than one class per namespace is not allowed",
-                                false,
+                                Some(Rule::SingleClassPerFile),
                             ));
                         }
                     }
@@ -46,7 +45,7 @@ impl SingleClassPerFile {
                                 *span,
                                 "error".to_string(),
                                 "More than one class per file is not allowed",
-                                false,
+                                Some(Rule::SingleClassPerFile),
                             ));
                         }
                     }

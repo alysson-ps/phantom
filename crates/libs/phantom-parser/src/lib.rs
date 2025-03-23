@@ -10,8 +10,10 @@ use chumsky::{
     IterParser, Parser,
 };
 // use config::{load_config, validate};
-use logos::Logos;
-use phantom_core::{rich::RichError, BinaryOp, Expr, Program, Span, Statement, Token, Type};
+use logos::{Lexer, Logos};
+use phantom_core::{
+    rich::RichError, token::Token, BinaryOp, Expr, Program, Rule, Span, Statement, Type,
+};
 
 fn parser<'a, I>() -> impl Parser<'a, I, Program<'a>, Err<RichError<'a, Token<'a>, Span>>>
 where
@@ -73,7 +75,7 @@ where
                         Span::new(span_start, span.end),
                         "error".to_string(),
                         "Too many consecutive new lines",
-                        true,
+                        Some(Rule::TooManyConsecutiveNewlines),
                     ));
                 }
             });
@@ -114,7 +116,7 @@ where
                             span,
                             "error".to_string(),
                             "Nested namespaces are not allowed in this context.".to_string(),
-                            false,
+                            None,
                         ))
                     } else {
                         Ok(body)
@@ -432,7 +434,7 @@ where
                         Span::new(span_start, span.end),
                         "error".to_string(),
                         "Too many consecutive new lines",
-                        true,
+                        Some(Rule::TooManyConsecutiveNewlines),
                     ));
                 }
             });
@@ -554,32 +556,23 @@ pub fn parse<'a>(source: &'a str, config_path: &'a str) -> ParserResult<'a> {
 
     let token_stream = Stream::from_iter(token_iter).map((0..source.len()).into(), |(t, s)| (t, s));
 
-    let (result, mut errs) = parser()
-        // .validate(|program, _e, emitter| {
-        //     let lexer_ref = &mut Box::new(tokens.clone());
-        //     let statements_ref = Box::new(program.statements.clone());
-        //     validate(&source, lexer_ref, statements_ref, &config, emitter);
-        //     program
-        // })
-        .parse(token_stream)
-        .into_output_errors();
+    let (result, errs) = parser().parse(token_stream).into_output_errors();
 
-    // let (result, errs) = parser().parse(token_stream).into_output_errors();
-
-    if let Some(ref program) = result {
-        let tokens_ref = Box::new(tokens.clone());
-        let program_ref = Box::new(program.clone());
-        let err_ref = &mut Box::new(errs.clone());
-
-        phantom_linter::validate(&source, &tokens_ref, &program_ref, &config, err_ref);
-    }
-
-    // dbg!(&result);
-    // dbg!(&errs);
+    let errors = if let Some(ref program) = result {
+        phantom_linter::validate(
+            &source,
+            Box::new(tokens.clone()),
+            Box::new(program.clone()),
+            &config,
+            errs,
+        )
+    } else {
+        errs
+    };
 
     ParserResult {
         tokens,
         ast: result,
-        parse_errors: errs,
+        parse_errors: errors,
     }
 }
