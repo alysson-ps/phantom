@@ -92,6 +92,9 @@ fn parser(args: &ParserArgs) {
         tokens,
     } = phantom_parser::parse(&content, &config_path);
 
+    // dbg!(&ast);
+    // dbg!(&tokens);
+
     if args.fix {
         let errs = parse_errors
             .clone()
@@ -101,6 +104,7 @@ fn parser(args: &ParserArgs) {
             .collect::<Vec<RichError<Token>>>();
 
         let formatter = phantom_formatter::Event {
+            ast: ast.unwrap(),
             path: &args.path,
             tokens,
             errs,
