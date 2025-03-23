@@ -811,6 +811,8 @@ dependencies = [
  "crossterm",
  "dialoguer",
  "phantom-config",
+ "phantom-core",
+ "phantom-formatter",
  "phantom-parser",
  "serde",
  "strum",
@@ -836,6 +838,9 @@ dependencies = [
 [[package]]
 name = "phantom-formatter"
 version = "0.1.0"
+dependencies = [
+ "phantom-core",
+]
 
 [[package]]
 name = "phantom-linter"
