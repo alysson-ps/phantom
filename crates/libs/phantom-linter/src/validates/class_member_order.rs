@@ -4,7 +4,7 @@ pub struct ClassMemberOrder;
 use std::{collections::HashMap, ops::Index};
 
 use phantom_config::RuleParams;
-use phantom_core::{rich::RichError, token::Token, Rule, Statement};
+use phantom_core::{rich::RichError, token::Token, Rule, Span, Statement};
 
 impl ClassMemberOrder {
     pub fn run<'a, T>(
@@ -50,23 +50,42 @@ impl ClassMemberOrder {
                                     sort.insert(member_type.as_str().unwrap(), i);
                                 }
 
-                                let mut last_index = 0; // Começa com o menor índice possível
+                                let mut index = 0; // Começa com o menor índice possível
 
                                 methods.iter().for_each(|(member_type, name, span)| {
                                     if let Some(&current_index) = sort.get(member_type) {
-                                        if current_index < last_index {
-                                            errors.push(RichError::custom(
-                                                **span,
-                                                "error".to_string(),
-                                                format!(
-                                                    "Member \"{}\" should be declared after {}",
-                                                    name,
-                                                    order.to_vec().index(last_index).to_string()
-                                                ),
-                                                Some(Rule::ClassMemberOrder),
-                                            ));
+                                        if current_index < index {
+                                            if let Some(search) =
+                                                order.to_vec().index(index).as_str()
+                                            {
+                                                let order_span = methods
+                                                    .iter()
+                                                    .filter(|(type_, _, _)| *type_ == search)
+                                                    .map(|(_, _, span)| span)
+                                                    .collect::<Vec<_>>()
+                                                    .first()
+                                                    .cloned();
+
+                                                errors.push(RichError::custom(
+                                                    **span,
+                                                    "error".to_string(),
+                                                    format!(
+                                                        "Member \"{}\" should be declared after {}",
+                                                        name, search
+                                                    ),
+                                                    Some(Rule::ClassMemberOrder(
+                                                        order
+                                                            .iter()
+                                                            .map(|v| {
+                                                                v.as_str().unwrap().to_string()
+                                                            })
+                                                            .collect(),
+                                                        **order_span.unwrap(),
+                                                    )),
+                                                ));
+                                            }
                                         }
-                                        last_index = current_index;
+                                        index = current_index;
                                     }
                                 });
                             }
