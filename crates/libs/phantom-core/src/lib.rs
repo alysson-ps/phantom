@@ -132,8 +132,18 @@ pub enum BinaryOp {
 pub enum Rule {
     LineLength,
     DisallowDebugFunctions,
-    ClassMemberOrder,
+    ClassMemberOrder(Vec<String>, Span),
     EnforceNamespace,
     SingleClassPerFile,
     TooManyConsecutiveNewlines,
+}
+
+impl<'a> Program<'a> {
+    pub fn default() -> Self {
+        Self {
+            kind: "program",
+            span: Span::new(0, 0),
+            statements: vec![],
+        }
+    }
 }
