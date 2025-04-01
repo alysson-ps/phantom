@@ -72,7 +72,7 @@ where
                     let span_start = span.start + 2;
 
                     emitter.emit(RichError::custom(
-                        Span::new(span_start, span.end),
+                        Span::from(span_start..span.end),
                         "error".to_string(),
                         "Too many consecutive new lines",
                         Some(Rule::TooManyConsecutiveNewlines),
@@ -431,7 +431,7 @@ where
                     let span_start = span.start + 2;
 
                     emitter.emit(RichError::custom(
-                        Span::new(span_start, span.end),
+                        Span::from(span_start..span.end),
                         "error".to_string(),
                         "Too many consecutive new lines",
                         Some(Rule::TooManyConsecutiveNewlines),

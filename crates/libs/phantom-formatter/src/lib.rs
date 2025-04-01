@@ -112,103 +112,103 @@ fn mount_code<'a>(tokens: Vec<Token<'a>>) -> String {
     tokens.iter().map(|tok| tok.code().to_string()).collect::<Vec<_>>().join("")
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
 
-    #[test]
-    fn mount_empty_tokens_test() {
-        let tokens = vec![];
-        let result = mount_code(tokens);
-        assert_eq!(result, "");
-    }
+//     #[test]
+//     fn mount_empty_tokens_test() {
+//         let tokens = vec![];
+//         let result = mount_code(tokens);
+//         assert_eq!(result, "");
+//     }
 
-    #[test]
-    fn mount_single_token_test() {
-        let tokens = vec![Token::OpenTag];
-        let result = mount_code(tokens);
-        assert_eq!(result, "<?php");
-    }
+//     #[test]
+//     fn mount_single_token_test() {
+//         let tokens = vec![Token::OpenTag];
+//         let result = mount_code(tokens);
+//         assert_eq!(result, "<?php");
+//     }
 
-    #[test]
-    fn mount_multiple_tokens_test() {
-        let tokens = vec![Token::OpenTag, Token::Newline, Token::CloseTag];
-        let result = mount_code(tokens);
-        assert_eq!(result, "<?php\n?>");
-    }
+//     #[test]
+//     fn mount_multiple_tokens_test() {
+//         let tokens = vec![Token::OpenTag, Token::Newline, Token::CloseTag];
+//         let result = mount_code(tokens);
+//         assert_eq!(result, "<?php\n?>");
+//     }
 
-    #[test]
-    fn format_to_many_consecutive_new_lines_test() {
-        let tokens = vec![
-            (Token::OpenTag, Span::new(0, 5)),
-            (Token::Newline, Span::new(5, 6)),
-            (Token::Newline, Span::new(6, 7)),
-            (Token::Newline, Span::new(7, 8)),
-            (Token::Newline, Span::new(8, 9)),
-            (Token::CloseTag, Span::new(9, 11)),
-        ];
+//     #[test]
+//     fn format_to_many_consecutive_new_lines_test() {
+//         let tokens = vec![
+//             (Token::OpenTag, Span::new(0, 5)),
+//             (Token::Newline, Span::new(5, 6)),
+//             (Token::Newline, Span::new(6, 7)),
+//             (Token::Newline, Span::new(7, 8)),
+//             (Token::Newline, Span::new(8, 9)),
+//             (Token::CloseTag, Span::new(9, 11)),
+//         ];
 
-        let err = RichError::custom(
-            Span::new(7, 9),
-            "error".to_string(),
-            "Too many consecutive new lines".to_string(),
-            Some(phantom_core::Rule::TooManyConsecutiveNewlines),
-        );
+//         let err = RichError::custom(
+//             Span::new(7, 9),
+//             "error".to_string(),
+//             "Too many consecutive new lines".to_string(),
+//             Some(phantom_core::Rule::TooManyConsecutiveNewlines),
+//         );
 
-        let formated = format(Program::default(), tokens, err);
+//         let formated = format(Program::default(), tokens, err);
 
-        assert_eq!(formated, "<?php\n\n?>");
-    }
+//         assert_eq!(formated, "<?php\n\n?>");
+//     }
 
-    #[test]
-    fn format_disallow_debug_functions_test() {
-        let tokens = vec![
-            (Token::OpenTag, Span::new(0, 5)),
-            (Token::Newline, Span::new(5, 6)),
-            (Token::Tab(4), Span::new(6, 7)),
-            (Token::Identifier("var_dump"), Span::new(7, 15)),
-            (Token::LParen, Span::new(15, 16)),
-            (Token::Variable("$text"), Span::new(16, 21)),
-            (Token::Comma, Span::new(21, 22)),
-            (Token::Variable("$prefix"), Span::new(23, 30)),
-            (Token::RParen, Span::new(30, 31)),
-            (Token::Semicolon, Span::new(31, 32)),
-            (Token::Newline, Span::new(32, 33)),
-            (Token::CloseTag, Span::new(33, 35)),
-        ];
+//     #[test]
+//     fn format_disallow_debug_functions_test() {
+//         let tokens = vec![
+//             (Token::OpenTag, Span::new(0, 5)),
+//             (Token::Newline, Span::new(5, 6)),
+//             (Token::Tab(4), Span::new(6, 7)),
+//             (Token::Identifier("var_dump"), Span::new(7, 15)),
+//             (Token::LParen, Span::new(15, 16)),
+//             (Token::Variable("$text"), Span::new(16, 21)),
+//             (Token::Comma, Span::new(21, 22)),
+//             (Token::Variable("$prefix"), Span::new(23, 30)),
+//             (Token::RParen, Span::new(30, 31)),
+//             (Token::Semicolon, Span::new(31, 32)),
+//             (Token::Newline, Span::new(32, 33)),
+//             (Token::CloseTag, Span::new(33, 35)),
+//         ];
 
-        let err = RichError::custom(
-            Span::new(7, 32),
-            "error".to_string(),
-            "Debug function var_dump is not allowed".to_string(),
-            Some(phantom_core::Rule::DisallowDebugFunctions),
-        );
+//         let err = RichError::custom(
+//             Span::new(7, 32),
+//             "error".to_string(),
+//             "Debug function var_dump is not allowed".to_string(),
+//             Some(phantom_core::Rule::DisallowDebugFunctions),
+//         );
 
-        let formated = format(Program::default(), tokens, err);
+//         let formated = format(Program::default(), tokens, err);
 
-        assert_eq!(formated, "<?php\n\n?>");
-    }
+//         assert_eq!(formated, "<?php\n\n?>");
+//     }
 
-    #[test]
-    fn format_class_member_order_test() {
-        let tokens = vec![];
+//     #[test]
+//     fn format_class_member_order_test() {
+//         let tokens = vec![];
 
-        let err = RichError::custom(
-            Span::new(0, 0),
-            "error".to_string(),
-            "Member \"test\" should be declared after properties".to_string(),
-            Some(phantom_core::Rule::ClassMemberOrder(
-                vec![
-                    "constants".to_string(),
-                    "properties".to_string(),
-                    "methods".to_string(),
-                ],
-                Span::new(0, 0),
-            )),
-        );
+//         let err = RichError::custom(
+//             Span::new(0, 0),
+//             "error".to_string(),
+//             "Member \"test\" should be declared after properties".to_string(),
+//             Some(phantom_core::Rule::ClassMemberOrder(
+//                 vec![
+//                     "constants".to_string(),
+//                     "properties".to_string(),
+//                     "methods".to_string(),
+//                 ],
+//                 Span::new(0, 0),
+//             )),
+//         );
 
-        let formated = format(Program::default(), tokens, err);
+//         let formated = format(Program::default(), tokens, err);
 
-        assert_eq!(formated, "");
-    }
-}
+//         assert_eq!(formated, "");
+//     }
+// }

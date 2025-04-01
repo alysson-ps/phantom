@@ -25,7 +25,7 @@ impl EnforceNamespace {
 
                 if namespace.clone().is_empty() {
                     errors.push(RichError::custom(
-                        Span::new(0, 0),
+                        Span::from(0..0),
                         "error".to_string(),
                         "No namespaces found",
                         Some(Rule::EnforceNamespace),

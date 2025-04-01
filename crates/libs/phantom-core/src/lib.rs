@@ -142,7 +142,7 @@ impl<'a> Program<'a> {
     pub fn default() -> Self {
         Self {
             kind: "program",
-            span: Span::new(0, 0),
+            span: SimpleSpan::from(0..0),
             statements: vec![],
         }
     }

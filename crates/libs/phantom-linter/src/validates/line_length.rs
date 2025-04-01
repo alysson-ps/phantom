@@ -34,7 +34,7 @@ impl LineLength {
                     for (line_number, length) in &line_map {
                         if *length > (max as usize) {
                             errors.push(RichError::custom(
-                                Span::new(span_start, span_start + length),
+                                Span::from(span_start..(span_start + length)),
                                 level.clone(),
                                 format!(
                                     "Line {} has {} characters (max: {})",
